@@ -1,0 +1,37 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build artefacts
+Build/
+Builds/
+bld/
+bin/
+obj/
+Debug*/
+Release*/
+x64/
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+
+# CMake / other
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# JUCE / audio assets
+*.wav
+*.aif
+BinaryData.cpp
+BinaryData.h
+
+# OS
+.DS_Store
+Thumbs.db
