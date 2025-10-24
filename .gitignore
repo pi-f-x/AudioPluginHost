@@ -20,18 +20,6 @@ x64/
 *.obj
 *.pdb
 
-# CMake / other
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-
-# JUCE / audio assets
-*.wav
-*.aif
-BinaryData.cpp
-BinaryData.h
-
 # OS
 .DS_Store
 Thumbs.db
