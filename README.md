@@ -20,3 +20,5 @@ Kompaktes Host-Projekt basierend auf JUCE (C++17). Dieses Repository enthält ei
 Wenn Header wie `BinaryData.h` oder example-Header fehlen, siehe Build-Logs — ggf. Beispiele/Hinweise nachimportieren oder die bedingten Includes in `Source/Plugins/InternalPlugins.cpp` aktivieren.
 
 ## Schnellstart (CLI)
+einmalig
+`git clone https://github.com/<user>/AudioPluginHost.git cd AudioPluginHost`
