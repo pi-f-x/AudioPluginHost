@@ -178,6 +178,7 @@ public:
         // being loaded. If that happens inside this method, the OSX event loop seems to be in some
         // kind of special "initialisation" mode and things get confused. But if we load the plugin
         // later when the normal event loop is running, everything's fine.
+
         triggerAsyncUpdate();
     }
 

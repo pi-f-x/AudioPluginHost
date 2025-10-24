@@ -58,7 +58,6 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
     return {};
 }
 
-#include "../Plugins/AUv3SynthPluginDemo.h"
 #include "../Plugins/ArpeggiatorPluginDemo.h"
 #include "../Plugins/AudioPluginDemo.h"
 #include "../Plugins/DSPModulePluginDemo.h"
