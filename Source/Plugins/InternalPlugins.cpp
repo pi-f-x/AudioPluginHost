@@ -58,7 +58,7 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
     return {};
 }
 
-#include "../Plugins/ArpeggiatorPluginDemo.h"
+/*#include "../Plugins/ArpeggiatorPluginDemo.h"
 #include "../Plugins/AudioPluginDemo.h"
 #include "../Plugins/DSPModulePluginDemo.h"
 #include "../Plugins/GainPluginDemo.h"
@@ -66,7 +66,8 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
 #include "../Plugins/MultiOutSynthPluginDemo.h"
 #include "../Plugins/NoiseGatePluginDemo.h"
 #include "../Plugins/SamplerPluginDemo.h"
-#include "../Plugins/SurroundPluginDemo.h"
+#include "../Plugins/SurroundPluginDemo.h"*/
+#include "./Fx/GainProcessor.h"
 
 //==============================================================================
 class InternalPlugin final : public AudioPluginInstance
@@ -457,15 +458,17 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<InternalPlugin> (std::make_unique<SineWaveSynth>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<ReverbPlugin>()); },
 
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<Arpeggiator>()); },
+        /*[] { return std::make_unique<InternalPlugin>(std::make_unique<Arpeggiator>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<DspModulePluginDemoAudioProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<GainProcessor>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<JuceDemoPluginAudioProcessor>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<MidiLoggerPluginDemoProcessor>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<MultiOutSynth>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<NoiseGate>()); },
         [] { return std::make_unique<InternalPlugin> (std::make_unique<SamplerAudioProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<SurroundProcessor>()); }
+        [] { return std::make_unique<InternalPlugin> (std::make_unique<SurroundProcessor>()); },*/
+        
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<GainProcessor>()); }
+
     }
 {
 }
