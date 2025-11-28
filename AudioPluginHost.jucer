@@ -64,7 +64,9 @@
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">
         <GROUP id="{C6F18735-16F3-3AB3-58F1-44BB680913EC}" name="Fx">
+          <FILE id="GEIZmn" name="FxCommon.h" compile="0" resource="0" file="Source/Plugins/Fx/FxCommon.h"/>
           <FILE id="Vr6C5m" name="GainProcessor.h" compile="0" resource="0" file="Source/Plugins/Fx/GainProcessor.h"/>
+          <FILE id="EdSahU" name="Phase90Plugin.h" compile="0" resource="0" file="Source/Plugins/Fx/Phase90Plugin.h"/>
         </GROUP>
         <FILE id="rcuPqK" name="ARAPlugin.cpp" compile="1" resource="0" file="Source/Plugins/ARAPlugin.cpp"/>
         <FILE id="gR1tiA" name="ARAPlugin.h" compile="0" resource="0" file="Source/Plugins/ARAPlugin.h"/>
