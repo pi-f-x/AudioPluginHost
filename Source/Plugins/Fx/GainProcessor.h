@@ -3,7 +3,7 @@
 
     GainProcessor
 
-  ==============================================================================
+  ============================================================================== 
 */
 
 #pragma once
@@ -211,7 +211,7 @@ public:
             // Base size (pedal-like proportions)
             setSize(300, 380);
 
-            // Rotary params: base sweep kept ~240°, then rotate +90° CCW
+            // Rotary params: base sweep kept ~240Â°, then rotate +90Â° CCW
             const float baseStart = 2.09439510239319549f;  
             const float baseEnd   = -2.09439510239319549f;   
             const float halfPi = static_cast<float>(double_Pi * 0.5f);
@@ -229,10 +229,26 @@ public:
                 addAndMakeVisible(s);
             }
 
+            // --- Manual inversion flags (keine setInverted()-API vorhanden) ---
+            invertDistortion = true; // Distortion-Knopf war gespiegelt -> wir invertieren manuell
+            invertVolume = true;     // Volume-Knopf war gespiegelt -> wir invertieren manuell
+
             // Read initial parameter values without sending notifications
-            distortionSlider.setValue(driveParameter ? *driveParameter : 0.0f, dontSendNotification);
-            filterSlider.setValue(filterParameter ? *filterParameter : 0.0f, dontSendNotification);
-            volumeSlider.setValue(volumeParameter ? *volumeParameter : 0.0f, dontSendNotification);
+            // Bei invertierten Reglern zeigen wir intern (1 - param) auf dem Slider
+            if (driveParameter)
+                distortionSlider.setValue(invertDistortion ? (1.0f - *driveParameter) : *driveParameter, dontSendNotification);
+            else
+                distortionSlider.setValue(0.0f, dontSendNotification);
+
+            if (filterParameter)
+                filterSlider.setValue(*filterParameter, dontSendNotification);
+            else
+                filterSlider.setValue(0.0f, dontSendNotification);
+
+            if (volumeParameter)
+                volumeSlider.setValue(invertVolume ? (1.0f - *volumeParameter) : *volumeParameter, dontSendNotification);
+            else
+                volumeSlider.setValue(0.0f, dontSendNotification);
 
             // Labels above knobs
             addAndMakeVisible(distLabel);
@@ -380,12 +396,17 @@ public:
                 const float pVolume = *volumeParameter;
                 const bool pBypass = static_cast<bool>(*bypassParameter);
 
-                if (std::abs((float)distortionSlider.getValue() - pDrive) > 0.001f)
-                    distortionSlider.setValue(pDrive, dontSendNotification);
-                if (std::abs((float)filterSlider.getValue() - pFilter) > 0.001f)
-                    filterSlider.setValue(pFilter, dontSendNotification);
-                if (std::abs((float)volumeSlider.getValue() - pVolume) > 0.001f)
-                    volumeSlider.setValue(pVolume, dontSendNotification);
+                // If a slider is manually inverted we update the slider with (1 - param)
+                const float displayDrive = invertDistortion ? (1.0f - pDrive) : pDrive;
+                const float displayFilter = pFilter;
+                const float displayVolume = invertVolume ? (1.0f - pVolume) : pVolume;
+
+                if (std::abs((float)distortionSlider.getValue() - displayDrive) > 0.001f)
+                    distortionSlider.setValue(displayDrive, dontSendNotification);
+                if (std::abs((float)filterSlider.getValue() - displayFilter) > 0.001f)
+                    filterSlider.setValue(displayFilter, dontSendNotification);
+                if (std::abs((float)volumeSlider.getValue() - displayVolume) > 0.001f)
+                    volumeSlider.setValue(displayVolume, dontSendNotification);
 
                 // keep ToggleButton in sync with parameter (no host notify)
                 if (bypassButton.getToggleState() != pBypass)
@@ -404,7 +425,9 @@ public:
 
             if (s == &distortionSlider && driveParameter)
             {
-                driveParameter->setValueNotifyingHost(static_cast<float>(distortionSlider.getValue()));
+                const float sliderVal = static_cast<float>(distortionSlider.getValue());
+                // Manuell invertieren: Slider zeigt (1 - param) wenn invertDistortion == true
+                driveParameter->setValueNotifyingHost(invertDistortion ? (1.0f - sliderVal) : sliderVal);
             }
             else if (s == &filterSlider && filterParameter)
             {
@@ -412,7 +435,8 @@ public:
             }
             else if (s == &volumeSlider && volumeParameter)
             {
-                volumeParameter->setValueNotifyingHost(static_cast<float>(volumeSlider.getValue()));
+                const float sliderVal = static_cast<float>(volumeSlider.getValue());
+                volumeParameter->setValueNotifyingHost(invertVolume ? (1.0f - sliderVal) : sliderVal);
             }
         }
 
@@ -434,6 +458,10 @@ public:
         Label volLabel;
 
         ToggleButton bypassButton; // invisible clickable area for footswitch
+
+        // Flags: welche Drehregler manuell invertiert werden
+        bool invertDistortion = false;
+        bool invertVolume = false;
 
         // RAT-specific LookAndFeel that adds marker points for better readability
         struct RATLookAndFeel : public FxCommon::PedalLookAndFeel

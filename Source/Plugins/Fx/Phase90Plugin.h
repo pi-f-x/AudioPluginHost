@@ -129,7 +129,7 @@ public:
     bool hasEditor() const override { return true; }
 
     //============================================================================== 
-    const juce::String getName() const override { return "Phase90"; }
+    const juce::String getName() const override { return "Phase 90"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }

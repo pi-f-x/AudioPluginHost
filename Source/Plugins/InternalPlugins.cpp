@@ -69,6 +69,9 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
 #include "../Plugins/SurroundPluginDemo.h"*/
 #include "./Fx/GainProcessor.h"
 #include "./Fx/Phase90Plugin.h"
+#include "./Fx/ChorusCE2.h"
+#include "./Fx/PitchShifter.h"
+
 
 //==============================================================================
 class InternalPlugin final : public AudioPluginInstance
@@ -211,10 +214,14 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
 }
 
 InternalPluginFormat::InternalPluginFormat()
-    : factory {
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
+    : factory{
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<GainProcessor>()); },
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },
+        //[] { return std::make_unique<InternalPlugin>(std::make_unique<PitchShifter>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<Phase90Processor>()); }
 
     }
