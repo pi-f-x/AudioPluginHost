@@ -1,9 +1,9 @@
-/*
+﻿/*
   ==============================================================================
 
     Phase90Plugin
 
-  ==============================================================================
+  ============================================================================== 
 */
 
 #pragma once
@@ -15,6 +15,7 @@
 
 //==============================================================================
 // MXR Phase 90 style phaser processor with simple GUI (one SPEED knob + footswitch)
+// NOTE: Audio is ALWAYS wet. Bypass parameter only affects UI/LED state, not audio path.
 class Phase90Processor final : public juce::AudioProcessor
 {
 public:
@@ -39,6 +40,10 @@ public:
         juce::ScopedNoDenormals noDenormals;
         sampleRate = newSampleRate > 0.0 ? newSampleRate : 44100.0;
         resetState();
+
+        // DC‑blocker coefficient (first order). cutOff default 20 Hz (tunable)
+        const double hpCutoff = 20.0;
+        hpCoeff = std::exp(-2.0 * juce::MathConstants<double>::pi * hpCutoff / sampleRate);
     }
 
     void releaseResources() override {}
@@ -48,10 +53,7 @@ public:
     {
         juce::ScopedNoDenormals noDenormals;
 
-        // bypass: if parameter exists and is true, pass through
-        if (bypass && static_cast<bool>(*bypass))
-            return;
-
+        // IMPORTANT: bypass parameter does NOT bypass audio. Signal is ALWAYS wet as per Schaltplan.
         const int numChannels = jmin(2, buffer.getNumChannels());
         const int numSamples = buffer.getNumSamples();
 
@@ -87,30 +89,37 @@ public:
             for (int ch = 0; ch < numChannels; ++ch)
             {
                 float* channelData = buffer.getWritePointer(ch);
-                const double x = (double)channelData[n];
+                const double xRaw = (double)channelData[n];
+
+                // Simple 1‑pole DC blocker: y = c*(y_prev + x - x_prev)
+                double x = hpCoeff * (hpPrevOut[ch] + xRaw - hpPrevIn[ch]);
+                hpPrevIn[ch] = xRaw;
+                hpPrevOut[ch] = x;
 
                 // 4 cascaded first-order allpass stages
+                // Correct allpass difference equation (y = -a*x + x1 + a*y1)
+
                 FxCommon::AllpassState& s0 = allpassStates[ch][0];
                 const double a0 = aCoeffs[0];
-                double y0 = a0 * x + s0.x1 - a0 * s0.y1;
+                double y0 = -a0 * x + s0.x1 + a0 * s0.y1;
                 s0.x1 = x; s0.y1 = y0;
 
                 FxCommon::AllpassState& s1 = allpassStates[ch][1];
                 const double a1 = aCoeffs[1];
-                double y1 = a1 * y0 + s1.x1 - a1 * s1.y1;
+                double y1 = -a1 * y0 + s1.x1 + a1 * s1.y1;
                 s1.x1 = y0; s1.y1 = y1;
 
                 FxCommon::AllpassState& s2 = allpassStates[ch][2];
                 const double a2 = aCoeffs[2];
-                double y2 = a2 * y1 + s2.x1 - a2 * s2.y1;
+                double y2 = -a2 * y1 + s2.x1 + a2 * s2.y1;
                 s2.x1 = y1; s2.y1 = y2;
 
                 FxCommon::AllpassState& s3 = allpassStates[ch][3];
                 const double a3 = aCoeffs[3];
-                double y3 = a3 * y2 + s3.x1 - a3 * s3.y1;
+                double y3 = -a3 * y2 + s3.x1 + a3 * s3.y1;
                 s3.x1 = y2; s3.y1 = y3;
 
-                // output from cascade
+                // always wet output (Schaltplan: cascaded allpass -> output mixer fixed to wet)
                 channelData[n] = (float)y3;
             }
         }
@@ -188,8 +197,9 @@ public:
             rateSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
             rateSlider.setRange(0.05, 6.0, 0.01);
             // nice sweep similar to hardware: ~240deg
-            const float startA = 2.09439510239319549f - juce::MathConstants<float>::halfPi;
-            const float endA = -2.09439510239319549f - juce::MathConstants<float>::halfPi;
+            // SWAPPED start/end to correct vertical mirror
+            const float startA = -2.09439510239319549f - juce::MathConstants<float>::halfPi;
+            const float endA   =  2.09439510239319549f - juce::MathConstants<float>::halfPi;
             rateSlider.setRotaryParameters(startA, endA, true);
             rateSlider.addListener(this);
             addAndMakeVisible(rateSlider);
@@ -204,13 +214,14 @@ public:
             speedLabel.setFont(juce::Font(14.0f, juce::Font::bold));
 
             // bypass footswitch - invisible button on top of painted footswitch
+            // Note: toggling only changes UI state (LED). Audio path remains wet.
             bypassButton.setClickingTogglesState(true);
             bypassButton.setToggleState(bypassParameter ? static_cast<bool>(*bypassParameter) : false, juce::dontSendNotification);
             bypassButton.onClick = [this]()
             {
                 if (!bypassParameter) return;
                 bool newVal = bypassButton.getToggleState();
-                // like GainProcessor: set parameter notifying host immediately
+                // keep parameter for host automation/preset recall, but do NOT alter audio path
                 bypassParameter->setValueNotifyingHost(newVal ? 1.0f : 0.0f);
             };
             bypassButton.setColour(juce::ToggleButton::textColourId, juce::Colours::transparentBlack);
@@ -252,7 +263,7 @@ public:
             g.setColour(metal.contrasting(0.4f));
             g.drawEllipse(footCentre.x - footR, footCentre.y - footR, footR * 2.0f, footR * 2.0f, 2.0f);
 
-            // LED: lights when effect engaged (not bypassed)
+            // LED: lights when effect engaged (not bypassed) — purely visual
             bool isBypassed = (bypassParameter ? static_cast<bool>(*bypassParameter) : false);
             bool ledOn = !isBypassed;
             float ledR = 7.0f;
@@ -339,8 +350,13 @@ private:
     {
         lfoPhase = 0.0;
         for (int ch = 0; ch < 2; ++ch)
+        {
             for (int s = 0; s < 4; ++s)
                 allpassStates[ch][s] = FxCommon::AllpassState();
+
+            hpPrevIn[ch] = 0.0;
+            hpPrevOut[ch] = 0.0;
+        }
     }
 
     // parameters
@@ -350,6 +366,11 @@ private:
     FxCommon::AllpassState allpassStates[2][4];
     double sampleRate = 44100.0;
     double lfoPhase = 0.0;
+
+    // DC blocker state per channel
+    double hpPrevIn[2] = { 0.0, 0.0 };
+    double hpPrevOut[2] = { 0.0, 0.0 };
+    double hpCoeff = 0.995;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Phase90Processor)
 };

@@ -71,6 +71,7 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
 #include "./Fx/Phase90Plugin.h"
 #include "./Fx/ChorusCE2.h"
 #include "./Fx/PitchShifter.h"
+#include "./Fx/AnalogDelay.h"
 
 
 //==============================================================================
@@ -221,7 +222,8 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<GainProcessor>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },
-        //[] { return std::make_unique<InternalPlugin>(std::make_unique<PitchShifter>()); },
+		[] { return std::make_unique<InternalPlugin>(std::make_unique<AnalogDelay>()); },
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<PitchShifter>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<Phase90Processor>()); }
 
     }

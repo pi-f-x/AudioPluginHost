@@ -64,6 +64,7 @@
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">
         <GROUP id="{C6F18735-16F3-3AB3-58F1-44BB680913EC}" name="Fx">
+          <FILE id="Uh2Mni" name="AnalogDelay.h" compile="0" resource="0" file="Source/Plugins/Fx/AnalogDelay.h"/>
           <FILE id="XfdLct" name="ChorusCE2.h" compile="0" resource="0" file="Source/Plugins/Fx/ChorusCE2.h"/>
           <FILE id="GEIZmn" name="FxCommon.h" compile="0" resource="0" file="Source/Plugins/Fx/FxCommon.h"/>
           <FILE id="Vr6C5m" name="GainProcessor.h" compile="0" resource="0" file="Source/Plugins/Fx/GainProcessor.h"/>
@@ -103,20 +104,20 @@
                JUCE_USE_CAMERA="0" JUCE_PLUGINHOST_AU="1" JUCE_WEB_BROWSER="0"
                JUCE_PLUGINHOST_VST3="1" JUCE_PLUGINHOST_LADSPA="1" JUCE_PLUGINHOST_LV2="1"/>
   <MODULES>
-    <MODULE id="juce_audio_basics" showAllCode="1"/>
-    <MODULE id="juce_audio_devices" showAllCode="1"/>
-    <MODULE id="juce_audio_formats" showAllCode="1"/>
-    <MODULE id="juce_audio_processors" showAllCode="1"/>
-    <MODULE id="juce_audio_utils" showAllCode="1"/>
-    <MODULE id="juce_core" showAllCode="1"/>
-    <MODULE id="juce_cryptography" showAllCode="1"/>
-    <MODULE id="juce_data_structures" showAllCode="1"/>
-    <MODULE id="juce_dsp" showAllCode="1"/>
-    <MODULE id="juce_events" showAllCode="1"/>
-    <MODULE id="juce_graphics" showAllCode="1"/>
-    <MODULE id="juce_gui_basics" showAllCode="1"/>
-    <MODULE id="juce_gui_extra" showAllCode="1"/>
-    <MODULE id="juce_opengl" showAllCode="1"/>
+    <MODULE id="juce_audio_basics" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_cryptography" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useGlobalPath="1"/>
+    <MODULE id="juce_opengl" showAllCode="1" useGlobalPath="1"/>
   </MODULES>
   <LIVE_SETTINGS>
     <OSX/>
