@@ -64,10 +64,11 @@
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">
         <GROUP id="{C6F18735-16F3-3AB3-58F1-44BB680913EC}" name="Fx">
+          <FILE id="HNDTqJ" name="BigMuffFuzz.h" compile="0" resource="0" file="Source/Plugins/Fx/BigMuffFuzz.h"/>
           <FILE id="Uh2Mni" name="AnalogDelay.h" compile="0" resource="0" file="Source/Plugins/Fx/AnalogDelay.h"/>
           <FILE id="XfdLct" name="ChorusCE2.h" compile="0" resource="0" file="Source/Plugins/Fx/ChorusCE2.h"/>
           <FILE id="GEIZmn" name="FxCommon.h" compile="0" resource="0" file="Source/Plugins/Fx/FxCommon.h"/>
-          <FILE id="Vr6C5m" name="GainProcessor.h" compile="0" resource="0" file="Source/Plugins/Fx/GainProcessor.h"/>
+          <FILE id="Vr6C5m" name="RatDistortion.h" compile="0" resource="0" file="Source/Plugins/Fx/RatDistortion.h"/>
           <FILE id="EdSahU" name="Phase90Plugin.h" compile="0" resource="0" file="Source/Plugins/Fx/Phase90Plugin.h"/>
           <FILE id="bpMwBB" name="PitchShifter.h" compile="0" resource="0" file="Source/Plugins/Fx/PitchShifter.h"/>
         </GROUP>

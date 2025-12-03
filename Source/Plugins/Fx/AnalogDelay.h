@@ -35,7 +35,7 @@ public:
         : AudioProcessor(BusesProperties().withInput("Input", AudioChannelSet::mono())
                                          .withOutput("Output", AudioChannelSet::mono()))
     {
-        // Alle Regler standardmäßig auf 0.5 (12 Uhr)
+        // Alle Regler standardmÃ¤ÃŸig auf 0.5 (12 Uhr)
         addParameter(delay = new AudioParameterFloat({ "delay", 1 }, "Delay", 0.0f, 1.0f, 0.5f));
         addParameter(mix = new AudioParameterFloat({ "mix", 1 }, "Mix", 0.0f, 1.0f, 0.5f));
         addParameter(regen = new AudioParameterFloat({ "regen", 1 }, "Regen", 0.0f, 1.0f, 0.5f));
@@ -47,14 +47,14 @@ public:
     void prepareToPlay(double sampleRateIn, int /*samplesPerBlock*/) override
     {
         sampleRate = sampleRateIn;
-        // maximaler Delaybereich (ms) -> Buffergröße berechnen
+        // maximaler Delaybereich (ms) -> BuffergrÃ¶ÃŸe berechnen
         const double maxDelayMs = maxDelayMilliseconds;
         const int maxSamples = static_cast<int>(std::ceil(maxDelayMs * sampleRate / 1000.0)) + 4;
         delayBuffer.assign(maxSamples, 0.0);
         bufferSize = (int)delayBuffer.size();
         writeIndex = 0;
 
-        // Feedback filter state (mono, aber als vector für späteren Multichannel-Support)
+        // Feedback filter state (mono, aber als vector fÃ¼r spÃ¤teren Multichannel-Support)
         fbState.assign(1, 0.0);
         lastFbCutoff = -1.0;
         updateFeedbackCoeffs();
@@ -222,10 +222,10 @@ public:
             setSize(340, 210);
 
             // rotary knob geometry: configure so 0.5 -> 12:00, 0 -> ~7:00, 1 -> ~5:00
-            // startAngle = -pi/2 - 2.618...  (~ -240° -> equivalent to 120° / 7 Uhr)
-            // endAngle   = -pi/2 + 2.618...  (~  60°  -> 5 Uhr)
-            const float startAngle = -4.1887902047863905f; // -240°
-            const float endAngle   =  1.0471975511965976f; //  60°
+            // startAngle = -pi/2 - 2.618...  (~ -240Â° -> equivalent to 120Â° / 7 Uhr)
+            // endAngle   = -pi/2 + 2.618...  (~  60Â°  -> 5 Uhr)
+            const float startAngle = -4.1887902047863905f; // -240Â°
+            const float endAngle   =  1.0471975511965976f; //  60Â°
 
             for (auto* s : { &delaySlider, &mixSlider, &regenSlider })
             {
@@ -300,7 +300,7 @@ public:
         {
             auto bounds = getLocalBounds().toFloat();
 
-            // Dark green base (dunkelgrün) with white accents and black knobs as requested
+            // Dark green base (dunkelgrÃ¼n) with white accents and black knobs as requested
             const Colour baseGreen = Colour::fromRGB(18, 85, 50);
             g.fillAll(baseGreen);
 
@@ -335,7 +335,7 @@ public:
             bool isBypassed = (bypassParameter ? static_cast<bool>(*bypassParameter) : false);
             bool ledOn = !isBypassed;
             float ledR = 7.0f;
-            // LED links neben den Fußschalter platzieren
+            // LED links neben den FuÃŸschalter platzieren
             Point<float> ledPos(footCentre.x - footR - 18.0f, footCentre.y);
             if (ledOn)
                 g.setColour(Colours::red.brighter(0.0f));
@@ -474,17 +474,17 @@ private:
     double fbAlpha{ 1.0 };
 
     // constants (tunable)
-    static constexpr double minDelayMilliseconds = 20.0;   // kleinste Verzögerung (ms)
-    static constexpr double maxDelayMilliseconds = 650.0;  // maximale Verzögerung (ms)
+    static constexpr double minDelayMilliseconds = 20.0;   // kleinste VerzÃ¶gerung (ms)
+    static constexpr double maxDelayMilliseconds = 650.0;  // maximale VerzÃ¶gerung (ms)
 
-    // regen scaling: reduziert die Stärke des REGEN-Parameters.
+    // regen scaling: reduziert die StÃ¤rke des REGEN-Parameters.
     // Damit entspricht der bisherige Wert bei 0.33 jetzt dem neuen Wert bei 1.0
     static constexpr double regenScale = 0.33;
 
     // update feedback lowpass (cutoff mapped from regen param)
     void updateFeedbackCoeffs()
     {
-        // default regen->cutoff mapping (höherer regen -> dunklerer cutoff)
+        // default regen->cutoff mapping (hÃ¶herer regen -> dunklerer cutoff)
         // map regen [0..1] -> cutoff [maxFc .. minFc] using scaled regen
         const double r = (regen ? static_cast<double>(*regen) * regenScale : 0.0);
         const double minFc = 800.0;

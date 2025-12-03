@@ -1,7 +1,7 @@
 /*
   ==============================================================================
 
-    GainProcessor
+    RatDistortion
 
   ============================================================================== 
 */
@@ -17,11 +17,11 @@
 // ProCo Rat inspired distortion processor
 //==============================================================================
 
-class GainProcessor final : public AudioProcessor
+class RatDistortion final : public AudioProcessor
 {
 public:
     //==============================================================================
-    GainProcessor()
+    RatDistortion()
         : AudioProcessor(BusesProperties().withInput("Input", AudioChannelSet::mono())
             .withOutput("Output", AudioChannelSet::mono()))
     {
@@ -196,7 +196,7 @@ public:
                          private Timer
     {
     public:
-        Editor(GainProcessor& p,
+        Editor(RatDistortion& p,
                AudioParameterFloat* driveParam,
                AudioParameterFloat* filterParam,
                AudioParameterFloat* volumeParam,
@@ -440,7 +440,7 @@ public:
             }
         }
 
-        GainProcessor& processor;
+        RatDistortion& processor;
 
         // parameter pointers
         AudioParameterFloat* driveParameter = nullptr;
@@ -539,5 +539,5 @@ private:
     }
 
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GainProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RatDistortion)
 };

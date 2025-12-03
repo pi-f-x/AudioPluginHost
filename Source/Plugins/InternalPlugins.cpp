@@ -58,16 +58,8 @@ static std::unique_ptr<InputStream> createAssetInputStream (const char* resource
     return {};
 }
 
-/*#include "../Plugins/ArpeggiatorPluginDemo.h"
-#include "../Plugins/AudioPluginDemo.h"
-#include "../Plugins/DSPModulePluginDemo.h"
-#include "../Plugins/GainPluginDemo.h"
-#include "../Plugins/MidiLoggerPluginDemo.h"
-#include "../Plugins/MultiOutSynthPluginDemo.h"
-#include "../Plugins/NoiseGatePluginDemo.h"
-#include "../Plugins/SamplerPluginDemo.h"
-#include "../Plugins/SurroundPluginDemo.h"*/
-#include "./Fx/GainProcessor.h"
+#include "./Fx/RatDistortion.h"
+#include "./Fx/BigMuffFuzz.h"
 #include "./Fx/Phase90Plugin.h"
 #include "./Fx/ChorusCE2.h"
 #include "./Fx/PitchShifter.h"
@@ -220,7 +212,8 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
-        [] { return std::make_unique<InternalPlugin>(std::make_unique<GainProcessor>()); },
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<RatDistortion>()); },
+		[] { return std::make_unique<InternalPlugin>(std::make_unique<BigMuffFuzz>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },
 		[] { return std::make_unique<InternalPlugin>(std::make_unique<AnalogDelay>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<PitchShifter>()); },
