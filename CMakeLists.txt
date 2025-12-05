@@ -22,12 +22,6 @@ target_sources(AudioPluginHost PRIVATE
     Source/UI/MainHostWindow.cpp
 )
 
-# Dein eigenes BinaryData (wenn du keine Assets hast, weglassen)
-juce_add_binary_data(AudioPluginHostData
-    SOURCES
-        Assets/icon.png
-)
-
 # Libraries & JUCE-Module
 target_link_libraries(AudioPluginHost PRIVATE
     AudioPluginHostData
