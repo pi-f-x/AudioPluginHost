@@ -39,25 +39,6 @@
 #include "InternalPlugins.h"
 #include "PluginGraph.h"
 
-#define PIP_DEMO_UTILITIES_INCLUDED 1
-
-// An alternative version of createAssetInputStream from the demo utilities header
-// that fetches resources from embedded binary data instead of files
-static std::unique_ptr<InputStream> createAssetInputStream (const char* resourcePath)
-{
-    for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
-    {
-        if (String (BinaryData::originalFilenames[i]) == String (resourcePath))
-        {
-            int dataSizeInBytes;
-            auto* resource = BinaryData::getNamedResource (BinaryData::namedResourceList[i], dataSizeInBytes);
-            return std::make_unique<MemoryInputStream> (resource, dataSizeInBytes, false);
-        }
-    }
-
-    return {};
-}
-
 #include "./Fx/RatDistortion.h"
 #include "./Fx/BigMuffFuzz.h"
 #include "./Fx/Phase90Plugin.h"
@@ -85,8 +66,12 @@ public:
     const String getName() const override                                         { return inner->getName(); }
     StringArray getAlternateDisplayNames() const override                         { return inner->getAlternateDisplayNames(); }
     double getTailLengthSeconds() const override                                  { return inner->getTailLengthSeconds(); }
-    bool acceptsMidi() const override                                             { return inner->acceptsMidi(); }
-    bool producesMidi() const override                                            { return inner->producesMidi(); }
+
+    // MIDI removed: always report no MIDI support
+    bool acceptsMidi() const override                                             { return false; }
+    bool producesMidi() const override                                            { return false; }
+    bool isMidiEffect() const override                                            { return false; }
+
     AudioProcessorEditor* createEditor() override                                 { return inner->createEditor(); }
     bool hasEditor() const override                                               { return inner->hasEditor(); }
     int getNumPrograms() override                                                 { return inner->getNumPrograms(); }
@@ -108,13 +93,31 @@ public:
 
     void releaseResources() override                                              { inner->releaseResources(); }
     void memoryWarningReceived() override                                         { inner->memoryWarningReceived(); }
-    void processBlock (AudioBuffer<float>& a, MidiBuffer& m) override             { inner->processBlock (a, m); }
-    void processBlock (AudioBuffer<double>& a, MidiBuffer& m) override            { inner->processBlock (a, m); }
-    void processBlockBypassed (AudioBuffer<float>& a, MidiBuffer& m) override     { inner->processBlockBypassed (a, m); }
-    void processBlockBypassed (AudioBuffer<double>& a, MidiBuffer& m) override    { inner->processBlockBypassed (a, m); }
+
+    // MIDI removed: incoming MidiBuffer is ignored and not forwarded to inner
+    void processBlock (AudioBuffer<float>& a, MidiBuffer& /*m*/) override
+    {
+        MidiBuffer emptyMidi;
+        inner->processBlock (a, emptyMidi);
+    }
+    void processBlock (AudioBuffer<double>& a, MidiBuffer& /*m*/) override
+    {
+        MidiBuffer emptyMidi;
+        inner->processBlock (a, emptyMidi);
+    }
+    void processBlockBypassed (AudioBuffer<float>& a, MidiBuffer& /*m*/) override
+    {
+        MidiBuffer emptyMidi;
+        inner->processBlockBypassed (a, emptyMidi);
+    }
+    void processBlockBypassed (AudioBuffer<double>& a, MidiBuffer& /*m*/) override
+    {
+        MidiBuffer emptyMidi;
+        inner->processBlockBypassed (a, emptyMidi);
+    }
+
     bool supportsDoublePrecisionProcessing() const override                       { return inner->supportsDoublePrecisionProcessing(); }
-    bool supportsMPE() const override                                             { return inner->supportsMPE(); }
-    bool isMidiEffect() const override                                            { return inner->isMidiEffect(); }
+    bool supportsMPE() const override                                             { return false; } // MPE depends on MIDI — disable
     void reset() override                                                         { inner->reset(); }
     void setNonRealtime (bool b) noexcept override                                { inner->setNonRealtime (b); }
     void refreshParameterList() override                                          { inner->refreshParameterList(); }
@@ -142,18 +145,18 @@ private:
         const auto outs                 = proc.getTotalNumOutputChannels();
         const auto identifier           = proc.getName();
         const auto registerAsGenerator  = ins == 0;
-        const auto acceptsMidi          = proc.acceptsMidi();
 
         PluginDescription descr;
 
         descr.name              = identifier;
         descr.descriptiveName   = identifier;
         descr.pluginFormatName  = InternalPluginFormat::getIdentifier();
-        descr.category          = (registerAsGenerator ? (acceptsMidi ? "Synth" : "Generator") : "Effect");
+        // MIDI removed: don't categorize as "Synth" (which implies MIDI); keep "Generator" for inputless
+        descr.category          = (registerAsGenerator ? "Generator" : "Effect");
         descr.manufacturerName  = "JUCE";
         descr.version           = ProjectInfo::versionString;
         descr.fileOrIdentifier  = identifier;
-        descr.isInstrument      = (acceptsMidi && registerAsGenerator);
+        descr.isInstrument      = false; // MIDI removed: never an instrument
         descr.numInputChannels  = ins;
         descr.numOutputChannels = outs;
 
@@ -210,8 +213,6 @@ InternalPluginFormat::InternalPluginFormat()
     : factory{
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
-        //[] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
-        //[] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<RatDistortion>()); },
 		[] { return std::make_unique<InternalPlugin>(std::make_unique<BigMuffFuzz>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },
