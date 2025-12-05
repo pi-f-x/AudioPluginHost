@@ -210,8 +210,8 @@ InternalPluginFormat::InternalPluginFormat()
     : factory{
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
+        //[] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
+        //[] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor>(AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<RatDistortion>()); },
 		[] { return std::make_unique<InternalPlugin>(std::make_unique<BigMuffFuzz>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },

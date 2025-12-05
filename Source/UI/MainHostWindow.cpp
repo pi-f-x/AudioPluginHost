@@ -328,9 +328,20 @@ MainHostWindow::MainHostWindow()
    #if JUCE_IOS || JUCE_ANDROID
     setFullScreen (true);
    #else
-    setResizable (true, false);
-    setResizeLimits (500, 400, 10000, 10000);
-    centreWithSize (800, 600);
+    // Wenn das Gerät Touch hat (z.B. 5" Touchscreen auf Desktop), verwende feste 800x480
+    if (isOnTouchDevice())
+    {
+        // Fixe Größe passend zu 800x480, nicht skalierbar – besser für feste Touch-Panels
+        setResizable (false, false);
+        setResizeLimits (800, 480, 800, 480);
+        centreWithSize (800, 480);
+    }
+    else
+    {
+        setResizable (true, false);
+        setResizeLimits (500, 400, 10000, 10000);
+        centreWithSize (800, 600);
+    }
    #endif
 
     knownPluginList.setCustomScanner (std::make_unique<CustomPluginScanner>());

@@ -136,7 +136,6 @@ public:
 
     //==============================================================================
     std::unique_ptr<GraphEditorPanel> graphPanel;
-    std::unique_ptr<MidiKeyboardComponent> keyboardComp;
 
     //==============================================================================
     void showSidePanel (bool isSettingsPanel);
@@ -174,8 +173,8 @@ private:
 
     void init();
     void checkAvailableWidth();
-    void updateMidiOutput();
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GraphDocumentComponent)
 };
+
