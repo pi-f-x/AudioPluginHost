@@ -56,10 +56,10 @@
       <FILE id="jCz3Rm" name="cassette_recorder.wav" compile="0" resource="1"
             file="Source/BinaryData/cassette_recorder.wav"/>
       <FILE id="zYRH8b" name="cello.wav" compile="0" resource="1" file="Source/BinaryData/cello.wav"/>
-      <FILE id="HFYDIH" name="singing.ogg" compile="0" resource="1" file="Source/BinaryData/singing.ogg"/>
       <FILE id="RKO7u6" name="guitar_amp.wav" compile="0" resource="1" file="Source/BinaryData/guitar_amp.wav"/>
-      <FILE id="o0Tw6N" name="proaudio.path" compile="0" resource="1" file="Source/BinaryData/proaudio.path"/>
+      <FILE id="HFYDIH" name="singing.ogg" compile="0" resource="1" file="Source/BinaryData/singing.ogg"/>
       <FILE id="LOtMdb" name="reverb_ir.wav" compile="0" resource="1" file="Source/BinaryData/reverb_ir.wav"/>
+      <FILE id="o0Tw6N" name="proaudio.path" compile="0" resource="1" file="Source/BinaryData/proaudio.path"/>
     </GROUP>
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">

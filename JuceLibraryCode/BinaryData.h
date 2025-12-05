@@ -14,17 +14,17 @@ namespace BinaryData
     extern const char*   cello_wav;
     const int            cello_wavSize = 46348;
 
-    extern const char*   singing_ogg;
-    const int            singing_oggSize = 15354;
-
     extern const char*   guitar_amp_wav;
     const int            guitar_amp_wavSize = 90246;
 
-    extern const char*   proaudio_path;
-    const int            proaudio_pathSize = 452;
+    extern const char*   singing_ogg;
+    const int            singing_oggSize = 15354;
 
     extern const char*   reverb_ir_wav;
     const int            reverb_ir_wavSize = 648404;
+
+    extern const char*   proaudio_path;
+    const int            proaudio_pathSize = 452;
 
     // Number of elements in the namedResourceList and originalFileNames arrays.
     const int namedResourceListSize = 6;
