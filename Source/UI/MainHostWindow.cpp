@@ -314,7 +314,16 @@ MainHostWindow::MainHostWindow()
                       LookAndFeel::getDefaultLookAndFeel().findColour (ResizableWindow::backgroundColourId),
                       DocumentWindow::allButtons)
 {
-    formatManager.addDefaultFormats();
+    #if JUCE_PLUGINHOST_VST3
+        formatManager.addFormat(new juce::VST3PluginFormat());
+    #endif
+    #if JUCE_PLUGINHOST_VST
+        formatManager.addFormat(new juce::VSTPluginFormat());
+    #endif
+    #if JUCE_PLUGINHOST_LV2
+        formatManager.addFormat(new juce::LV2PluginFormat());
+    #endif
+
     formatManager.addFormat (new InternalPluginFormat());
 
     auto safeThis = SafePointer<MainHostWindow> (this);
