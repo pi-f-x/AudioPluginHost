@@ -272,8 +272,8 @@ ApplicationCommandManager& getCommandManager()    { return getApp().commandManag
 
 bool isOnTouchDevice()
 {
-    static bool isTouch = Desktop::getInstance().getMainMouseSource().isTouch();
-    return isTouch;
+    //static bool isTouch = Desktop::getInstance().getMainMouseSource().isTouch();
+    return true;
 }
 
 //==============================================================================

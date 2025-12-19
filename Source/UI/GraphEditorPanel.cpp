@@ -1062,6 +1062,15 @@ public:
         pluginButton.addListener (this);
         addAndMakeVisible (pluginButton);
 
+        // Neue Buttons: + und -
+        plusButton.setButtonText ("+");
+        plusButton.addListener (this);
+        addAndMakeVisible (plusButton);
+
+        minusButton.setButtonText ("-");
+        minusButton.addListener (this);
+        addAndMakeVisible (minusButton);
+
         titleLabel.setJustificationType (Justification::centredLeft);
         addAndMakeVisible (titleLabel);
 
@@ -1081,10 +1090,23 @@ private:
     {
         auto r = getLocalBounds();
 
-        int btnSize = isOnTouchDevice() ? 28 : 20;
-        burgerButton.setBounds (r.removeFromLeft (40).withSizeKeepingCentre (btnSize, btnSize));
+        // Grösser und mehr Abstand: erhöhte btnSize und gap
+        int btnSize = isOnTouchDevice() ? 36 : 28;
+        int sideIconArea = 48;
 
-        pluginButton.setBounds (r.removeFromRight (40).withSizeKeepingCentre (btnSize, btnSize));
+        burgerButton.setBounds (r.removeFromLeft (sideIconArea).withSizeKeepingCentre (btnSize, btnSize));
+
+        // Rechts reservieren: plugin icon + extra buttons
+        pluginButton.setBounds (r.removeFromRight (sideIconArea).withSizeKeepingCentre (btnSize, btnSize));
+
+        const int gap = isOnTouchDevice() ? 12 : 10;
+        const int extraButtonsWidth = (btnSize * 2) + (gap * 2);
+        auto extraArea = r.removeFromRight (extraButtonsWidth);
+
+        // Platzierung: von rechts nach links -> minus, dann plus (direkt links vom Plugin-Icon)
+        minusButton.setBounds (extraArea.removeFromRight (btnSize).withSizeKeepingCentre (btnSize, btnSize));
+        extraArea = extraArea.expanded (-gap, 0);
+        plusButton.setBounds (extraArea.removeFromRight (btnSize).withSizeKeepingCentre (btnSize, btnSize));
 
         titleLabel.setFont (FontOptions (static_cast<float> (getHeight()) * 0.5f, Font::plain));
         titleLabel.setBounds (r);
@@ -1092,7 +1114,14 @@ private:
 
     void buttonClicked (Button* b) override
     {
-        owner.showSidePanel (b == &burgerButton);
+        if (b == &burgerButton)
+            owner.showSidePanel (true);
+        else if (b == &pluginButton)
+            owner.showSidePanel (false);
+        else if (b == &plusButton)
+            owner.showSidePanel (false); // '+' öffnet die Plugin-Liste (wie pluginButton)
+        else if (b == &minusButton)
+            owner.hideLastSidePanel();   // '-' schliesst das letzte SidePanel
     }
 
     GraphDocumentComponent& owner;
@@ -1100,6 +1129,8 @@ private:
     Label titleLabel {"titleLabel", "Plugin Host"};
     ShapeButton burgerButton {"burgerButton", Colours::lightgrey, Colours::lightgrey, Colours::white};
     ShapeButton pluginButton {"pluginButton", Colours::lightgrey, Colours::lightgrey, Colours::white};
+    TextButton plusButton { "+" };
+    TextButton minusButton { "-" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TitleBarComponent)
 };
