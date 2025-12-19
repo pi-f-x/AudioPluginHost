@@ -5,10 +5,10 @@ project(AudioPluginHost
     LANGUAGES C CXX
 )
 
-# JUCE (JUCE is next to your project)
+# JUCE einbinden
 add_subdirectory(${CMAKE_SOURCE_DIR}/../JUCE JUCE-build)
 
-# GUI app
+# GUI App
 juce_add_gui_app(AudioPluginHost
     PRODUCT_NAME "AudioPluginHost"
 )
@@ -16,14 +16,14 @@ juce_add_gui_app(AudioPluginHost
 juce_generate_juce_header(AudioPluginHost)
 
 # =========================
-# BinaryData (THIS WAS MISSING)
+# BinaryData (aus .jucer!)
 # =========================
 juce_add_binary_data(AudioPluginHostData
     SOURCES
-        ./*
+        Source/BinaryData/*
 )
 
-# App sources
+# Sources
 target_sources(AudioPluginHost PRIVATE
     Source/HostStartup.cpp
     Source/Plugins/ARAPlugin.cpp
@@ -34,20 +34,31 @@ target_sources(AudioPluginHost PRIVATE
     Source/UI/MainHostWindow.cpp
 )
 
-# Link libraries
+# JUCE Module
 target_link_libraries(AudioPluginHost PRIVATE
     AudioPluginHostData
     juce::juce_audio_utils
     juce::juce_audio_processors
+    juce::juce_audio_formats
+    juce::juce_audio_devices
     juce::juce_audio_basics
     juce::juce_gui_extra
+    juce::juce_gui_basics
+    juce::juce_graphics
+    juce::juce_events
+    juce::juce_data_structures
     juce::juce_cryptography
+    juce::juce_core
     juce::juce_dsp
+    juce::juce_opengl
 )
 
-# Compile definitions
+# Compile Defines (aus JUCEOPTIONS)
 target_compile_definitions(AudioPluginHost PRIVATE
     JUCE_ALSA=1
-    JUCE_PLUGINHOST_LV2=1
     JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_LV2=1
+    JUCE_PLUGINHOST_LADSPA=1
+    JUCE_PLUGINHOST_AU=0
+    JUCE_WEB_BROWSER=0
 )
