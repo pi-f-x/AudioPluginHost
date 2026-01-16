@@ -69,8 +69,8 @@ struct GraphEditorPanel::PinComponent final : public Component,
             setTooltip (tip);
         }
 
-        // Set size depending on touch-device (larger touch targets)
-        setSize (isOnTouchDevice() ? 22 : 16, isOnTouchDevice() ? 22 : 16);
+        // Fixed size for 800x480 touchscreen - larger pins
+        setSize (28, 28);
     }
 
     void paint (Graphics& g) override
@@ -136,10 +136,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             }
         }
 
-        // Touch-optimised sizes and fonts
-        const bool touch = isOnTouchDevice();
-        font = FontOptions { touch ? 14.0f : 13.0f, Font::bold };
-        setSize (touch ? 180 : 150, touch ? 80 : 60);
+        // Fixed for 800x480 touchscreen - larger font and component
+        font = FontOptions { 18.0f, Font::bold };
+        setSize (220, 100);
     }
 
     PluginComponent (const PluginComponent&) = delete;
@@ -163,21 +162,16 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         toFront (true);
 
-        if (isOnTouchDevice())
-        {
-            // shorter long-press for better responsiveness on small touch panels
-            startTimer (500);
-        }
-        else
-        {
-            if (e.mods.isPopupMenu())
-                showPopupMenu();
-        }
+        // Always use touch-friendly delays for fixed touchscreen
+        startTimer (500);
+
+        if (! isOnTouchDevice() && e.mods.isPopupMenu())
+            showPopupMenu();
     }
 
     void mouseDrag (const MouseEvent& e) override
     {
-        if (isOnTouchDevice() && e.getDistanceFromDragStart() > 5)
+        if (e.getDistanceFromDragStart() > 5)
             stopTimer();
 
         if (! e.mods.isPopupMenu())
@@ -199,11 +193,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void mouseUp (const MouseEvent& e) override
     {
-        if (isOnTouchDevice())
-        {
-            stopTimer();
-            callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
-        }
+        stopTimer();
+        callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
 
         if (e.mouseWasDraggedSinceMouseDown())
         {
@@ -244,7 +235,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         g.setColour (findColour (TextEditor::textColourId));
         g.setFont (font);
-        g.drawFittedText (getName(), boxArea, Justification::centred, 2);
+        // Add padding around text for better readability
+        g.drawFittedText (getName(), boxArea.reduced (10, 6), Justification::centred, 3);
     }
 
     void resized() override
@@ -298,15 +290,16 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (processor.producesMidi())
             ++numOuts;
 
-        int w = 100;
-        int h = 60;
+        // Larger sizes for 800x480 touchscreen
+        int w = 150;
+        int h = 90;
 
-        w = jmax (w, (jmax (numIns, numOuts) + 1) * 20);
+        w = jmax (w, (jmax (numIns, numOuts) + 1) * 32);
 
         const auto textWidth = GlyphArrangement::getStringWidthInt (font, processor.getName());
-        w = jmax (w, 16 + jmin (textWidth, 300));
-        if (textWidth > 300)
-            h = 100;
+        w = jmax (w, 24 + jmin (textWidth, 400));
+        if (textWidth > 400)
+            h = 120;
 
         setSize (w, h);
         setName (processor.getName() + formatSuffix);
@@ -417,17 +410,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void timerCallback() override
     {
-        // this should only be called on touch devices
-        jassert (isOnTouchDevice());
-
         stopTimer();
         showPopupMenu();
     }
 
     void parameterValueChanged (int, float) override
     {
-        // Parameter changes might come from the audio thread or elsewhere, but
-        // we can only call repaint from the message thread.
         triggerAsyncUpdate();
     }
 
@@ -493,8 +481,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     const AudioProcessorGraph::NodeID pluginID;
     OwnedArray<PinComponent> pins;
     int numInputs = 0, numOutputs = 0;
-    // touch-aware pin size
-    int pinSize = isOnTouchDevice() ? 22 : 16;
+    // Fixed larger pin size for 800x480 touchscreen
+    int pinSize = 28;
     Point<int> originalPos;
     Font font;
     int numIns = 0, numOuts = 0;
@@ -733,7 +721,6 @@ GraphDocumentComponent::~GraphDocumentComponent()
 
     graph.reset();
 
-    titleBarComponent.reset();
     pluginListBoxModel.reset();
     statusBar.reset();
     graphPanel.reset();
@@ -746,11 +733,8 @@ void GraphEditorPanel::paint (Graphics& g)
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
 {
-    if (isOnTouchDevice())
-    {
-        originalTouchPos = e.position.toInt();
-        startTimer (750);
-    }
+    originalTouchPos = e.position.toInt();
+    startTimer (750);
 
     if (e.mods.isPopupMenu())
         showPopupMenu (e.position.toInt());
@@ -758,16 +742,13 @@ void GraphEditorPanel::mouseDown (const MouseEvent& e)
 
 void GraphEditorPanel::mouseUp (const MouseEvent&)
 {
-    if (isOnTouchDevice())
-    {
-        stopTimer();
-        callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
-    }
+    stopTimer();
+    callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
 }
 
 void GraphEditorPanel::mouseDrag (const MouseEvent& e)
 {
-    if (isOnTouchDevice() && e.getDistanceFromDragStart() > 5)
+    if (e.getDistanceFromDragStart() > 5)
         stopTimer();
 }
 
@@ -798,8 +779,6 @@ GraphEditorPanel::PinComponent* GraphEditorPanel::findPinAt (Point<float> pos) c
 {
     for (auto* fc : nodes)
     {
-        // NB: A Visual Studio optimiser error means we have to put this Component* in a local
-        // variable before trying to cast it, or it gets mysteriously optimised away..
         auto* comp = fc->getComponentAt (pos.toInt() - fc->getPosition());
 
         if (auto* pin = dynamic_cast<PinComponent*> (comp))
@@ -968,9 +947,6 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
 
 void GraphEditorPanel::timerCallback()
 {
-    // this should only be called on touch devices
-    jassert (isOnTouchDevice());
-
     stopTimer();
     showPopupMenu (originalTouchPos);
 }
@@ -986,9 +962,11 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
 
     void paint (Graphics& g) override
     {
-        g.setFont (FontOptions ((float) getHeight() * 0.7f, Font::bold));
+        // Larger font for 800x480 touchscreen
+        g.setFont (FontOptions ((float) getHeight() * 0.75f, Font::bold));
         g.setColour (Colours::black);
-        g.drawFittedText (tip, 10, 0, getWidth() - 12, getHeight(), Justification::centredLeft, 1);
+        // More padding for better readability
+        g.drawFittedText (tip, 12, 0, getWidth() - 16, getHeight(), Justification::centredLeft, 1);
     }
 
     void timerCallback() override
@@ -1013,134 +991,11 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
 };
 
 //==============================================================================
-// TitleBarComponent resized: make buttons larger on touch devices
-class GraphDocumentComponent::TitleBarComponent final : public Component,
-                                                        private Button::Listener
-{
-public:
-    explicit TitleBarComponent (GraphDocumentComponent& graphDocumentComponent)
-        : owner (graphDocumentComponent)
-    {
-        static const unsigned char burgerMenuPathData[]
-            = { 110,109,0,0,128,64,0,0,32,65,108,0,0,224,65,0,0,32,65,98,254,212,232,65,0,0,32,65,0,0,240,65,252,
-                169,17,65,0,0,240,65,0,0,0,65,98,0,0,240,65,8,172,220,64,254,212,232,65,0,0,192,64,0,0,224,65,0,0,
-                192,64,108,0,0,128,64,0,0,192,64,98,16,88,57,64,0,0,192,64,0,0,0,64,4,86,110,65,0,0,0,64,0,0,128,65,
-                98,0,0,0,64,254,212,136,65,16,88,57,64,0,0,144,65,0,0,128,64,0,0,144,65,108,0,0,224,65,0,0,144,65,98,
-                254,212,232,65,0,0,144,65,0,0,240,65,254,212,136,65,0,0,240,65,0,0,128,65,98,0,0,240,65,4,86,110,65,254,
-                212,232,65,0,0,96,65,0,0,224,65,0,0,96,65,99,109,0,0,224,65,0,0,176,65,108,0,0,128,64,0,0,176,65,98,16,
-                88,57,64,0,0,176,65,0,0,0,64,2,43,183,65,0,0,0,64,0,0,192,65,98,0,0,0,64,254,212,200,65,16,88,57,64,0,
-                0,208,65,0,0,128,64,0,0,208,65,108,0,0,224,65,0,0,208,65,98,254,212,232,65,0,0,208,65,0,0,240,65,254,
-                212,200,65,0,0,240,65,0,0,192,65,98,0,0,240,65,2,43,183,65,254,212,232,65,0,0,176,65,0,0,224,65,0,0,176,
-                65,99,101,0,0 };
-
-        static const unsigned char pluginListPathData[]
-            = { 110,109,193,202,222,64,80,50,21,64,108,0,0,48,65,0,0,0,0,108,160,154,112,65,80,50,21,64,108,0,0,48,65,80,
-                50,149,64,108,193,202,222,64,80,50,21,64,99,109,0,0,192,64,251,220,127,64,108,160,154,32,65,165,135,202,
-                64,108,160,154,32,65,250,220,47,65,108,0,0,192,64,102,144,10,65,108,0,0,192,64,251,220,127,64,99,109,0,0,
-                128,65,251,220,127,64,108,0,0,128,65,103,144,10,65,108,96,101,63,65,251,220,47,65,108,96,101,63,65,166,135,
-                202,64,108,0,0,128,65,251,220,127,64,99,109,96,101,79,65,148,76,69,65,108,0,0,136,65,0,0,32,65,108,80,
-                77,168,65,148,76,69,65,108,0,0,136,65,40,153,106,65,108,96,101,79,65,148,76,69,65,99,109,0,0,64,65,63,247,
-                95,65,108,80,77,128,65,233,161,130,65,108,80,77,128,65,125,238,167,65,108,0,0,64,65,51,72,149,65,108,0,0,64,
-                65,63,247,95,65,99,109,0,0,176,65,63,247,95,65,108,0,0,176,65,51,72,149,65,108,176,178,143,65,125,238,167,65,
-                108,176,178,143,65,233,161,130,65,108,0,0,176,65,63,247,95,65,99,101,0,0 };
-
-        {
-            Path p;
-            p.loadPathFromData (burgerMenuPathData, sizeof (burgerMenuPathData));
-            burgerButton.setShape (p, true, true, false);
-        }
-
-        {
-            Path p;
-            p.loadPathFromData (pluginListPathData, sizeof (pluginListPathData));
-            pluginButton.setShape (p, true, true, false);
-        }
-
-        burgerButton.addListener (this);
-        addAndMakeVisible (burgerButton);
-
-        pluginButton.addListener (this);
-        addAndMakeVisible (pluginButton);
-
-        // Neue Buttons: + und -
-        plusButton.setButtonText ("+");
-        plusButton.addListener (this);
-        addAndMakeVisible (plusButton);
-
-        minusButton.setButtonText ("-");
-        minusButton.addListener (this);
-        addAndMakeVisible (minusButton);
-
-        titleLabel.setJustificationType (Justification::centredLeft);
-        addAndMakeVisible (titleLabel);
-
-        setOpaque (true);
-    }
-
-private:
-    void paint (Graphics& g) override
-    {
-        auto titleBarBackgroundColour = getLookAndFeel().findColour (ResizableWindow::backgroundColourId).darker();
-
-        g.setColour (titleBarBackgroundColour);
-        g.fillRect (getLocalBounds());
-    }
-
-    void resized() override
-    {
-        auto r = getLocalBounds();
-
-        // Grösser und mehr Abstand: erhöhte btnSize und gap
-        int btnSize = isOnTouchDevice() ? 36 : 28;
-        int sideIconArea = 48;
-
-        burgerButton.setBounds (r.removeFromLeft (sideIconArea).withSizeKeepingCentre (btnSize, btnSize));
-
-        // Rechts reservieren: plugin icon + extra buttons
-        pluginButton.setBounds (r.removeFromRight (sideIconArea).withSizeKeepingCentre (btnSize, btnSize));
-
-        const int gap = isOnTouchDevice() ? 12 : 10;
-        const int extraButtonsWidth = (btnSize * 2) + (gap * 2);
-        auto extraArea = r.removeFromRight (extraButtonsWidth);
-
-        // Platzierung: von rechts nach links -> minus, dann plus (direkt links vom Plugin-Icon)
-        minusButton.setBounds (extraArea.removeFromRight (btnSize).withSizeKeepingCentre (btnSize, btnSize));
-        extraArea = extraArea.expanded (-gap, 0);
-        plusButton.setBounds (extraArea.removeFromRight (btnSize).withSizeKeepingCentre (btnSize, btnSize));
-
-        titleLabel.setFont (FontOptions (static_cast<float> (getHeight()) * 0.5f, Font::plain));
-        titleLabel.setBounds (r);
-    }
-
-    void buttonClicked (Button* b) override
-    {
-        if (b == &burgerButton)
-            owner.showSidePanel (true);
-        else if (b == &pluginButton)
-            owner.showSidePanel (false);
-        else if (b == &plusButton)
-            owner.showSidePanel (false); // '+' öffnet die Plugin-Liste (wie pluginButton)
-        else if (b == &minusButton)
-            owner.hideLastSidePanel();   // '-' schliesst das letzte SidePanel
-    }
-
-    GraphDocumentComponent& owner;
-
-    Label titleLabel {"titleLabel", "Plugin Host"};
-    ShapeButton burgerButton {"burgerButton", Colours::lightgrey, Colours::lightgrey, Colours::white};
-    ShapeButton pluginButton {"pluginButton", Colours::lightgrey, Colours::lightgrey, Colours::white};
-    TextButton plusButton { "+" };
-    TextButton minusButton { "-" };
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TitleBarComponent)
-};
-
-
-//==============================================================================
-struct GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
+class GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
                                                           public ChangeListener,
                                                           public MouseListener
 {
+public:
     PluginListBoxModel (ListBox& lb, KnownPluginList& kpl)
         : owner (lb),
           knownPlugins (kpl)
@@ -1167,7 +1022,8 @@ struct GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
         g.setColour (rowIsSelected ? Colours::black : Colours::white);
 
         if (rowNumber < knownPlugins.getNumTypes())
-            g.drawFittedText (knownPlugins.getTypes()[rowNumber].name, { 0, 0, width, height - 2 }, Justification::centred, 1);
+            // Add padding for better readability
+            g.drawFittedText (knownPlugins.getTypes()[rowNumber].name, { 8, 0, width - 16, height - 2 }, Justification::centred, 1);
 
         g.setColour (Colours::black.withAlpha (0.4f));
         g.drawRect (0, height - 1, width, 1);
@@ -1192,6 +1048,7 @@ struct GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
                                  .contains (e.getEventRelativeTo (&owner).getMouseDownPosition());
     }
 
+private:
     ListBox& owner;
     KnownPluginList& knownPlugins;
 
@@ -1231,24 +1088,18 @@ void GraphDocumentComponent::init()
 
     graphPanel->updateComponents();
 
-    if (isOnTouchDevice())
-    {
-        titleBarComponent.reset (new TitleBarComponent (*this));
-        addAndMakeVisible (titleBarComponent.get());
+    pluginListBoxModel.reset (new PluginListBoxModel (pluginListBox, pluginList));
+    pluginListBox.setModel (pluginListBoxModel.get());
+    pluginListBox.setRowHeight (48);
 
-        pluginListBoxModel.reset (new PluginListBoxModel (pluginListBox, pluginList));
-        pluginListBox.setModel (pluginListBoxModel.get());
-        pluginListBox.setRowHeight (40);
+    pluginListSidePanel.setContent (&pluginListBox, false);
 
-        pluginListSidePanel.setContent (&pluginListBox, false);
+    mobileSettingsSidePanel.setContent (new AudioDeviceSelectorComponent (deviceManager,
+                                                                          0, 2, 0, 2,
+                                                                          true, true, true, false));
 
-        mobileSettingsSidePanel.setContent (new AudioDeviceSelectorComponent (deviceManager,
-                                                                              0, 2, 0, 2,
-                                                                              true, true, true, false));
-
-        addAndMakeVisible (pluginListSidePanel);
-        addAndMakeVisible (mobileSettingsSidePanel);
-    }
+    addAndMakeVisible (pluginListSidePanel);
+    addAndMakeVisible (mobileSettingsSidePanel);
 }
 
 void GraphDocumentComponent::resized()
@@ -1263,11 +1114,8 @@ void GraphDocumentComponent::resized()
         return bounds;
     }();
 
-    const int titleBarHeight = isOnTouchDevice() ? 36 : 40;
-    const int statusHeight = isOnTouchDevice() ? 18 : 20;
-
-    if (isOnTouchDevice())
-        titleBarComponent->setBounds (r.removeFromTop (titleBarHeight));
+    // Fixed sizes for 800x480 touchscreen - no title bar
+    const int statusHeight = 26;
 
     statusBar->setBounds (r.removeFromBottom (statusHeight));
     graphPanel->setBounds (r);
@@ -1277,10 +1125,9 @@ void GraphDocumentComponent::resized()
 
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster* source)
 {
-    // react to device manager changes (e.g. midi devices) or plugin-graph updates
     if (source == &deviceManager)
     {
-        // updateMidiOutput();  // entfernt: keine MIDI-Device-Updates mehr
+        // Device manager changed
     }
     else if (graphPanel)
     {
@@ -1290,16 +1137,12 @@ void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster* source)
 
 void GraphDocumentComponent::checkAvailableWidth()
 {
-    // Simple fallback: on small touch devices hide side panels to give more room to the graph.
-    if (isOnTouchDevice())
+    const int minWidthForPanels = 600;
+    if (getWidth() < minWidthForPanels)
     {
-        const int minWidthForPanels = 600;
-        if (getWidth() < minWidthForPanels)
-        {
-            pluginListSidePanel.setVisible (false);
-            mobileSettingsSidePanel.setVisible (false);
-            lastOpenedSidePanel = nullptr;
-        }
+        pluginListSidePanel.setVisible (false);
+        mobileSettingsSidePanel.setVisible (false);
+        lastOpenedSidePanel = nullptr;
     }
 }
 
@@ -1309,10 +1152,8 @@ void GraphDocumentComponent::createNewPlugin (const PluginDescriptionAndPreferen
         graphPanel->createNewPlugin (desc, position);
 }
 
-void GraphDocumentComponent::setDoublePrecision (bool /*doublePrecision*/)
+void GraphDocumentComponent::setDoublePrecision (bool)
 {
-    // Minimal implementation: reattach processor to graphPlayer so changes take effect.
-    // Full behaviour (recreating processors etc.) is out of scope for this quick fix.
     graphPlayer.setProcessor (nullptr);
     if (graph)
         graphPlayer.setProcessor (&graph->graph);
@@ -1328,7 +1169,6 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 
 void GraphDocumentComponent::releaseGraph()
 {
-    // Stop processing and release graph resources.
     graphPlayer.setProcessor (nullptr);
 
     if (graph)
