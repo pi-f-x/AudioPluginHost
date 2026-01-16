@@ -76,7 +76,15 @@ public:
     void endDraggingConnector (const MouseEvent&);
 
     //==============================================================================
+    void showPluginEditorInSidePanel (AudioProcessorGraph::NodeID nodeID);
+    void closePluginEditorSidePanel();
+
+    //==============================================================================
     PluginGraph& graph;
+    
+    struct PluginEditorSidePanel;
+    std::unique_ptr<PluginEditorSidePanel> pluginEditorPanel;
+    AudioProcessorGraph::NodeID currentlyShowingNodeID;
 
 private:
     struct PluginComponent;

@@ -165,6 +165,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         // Always use touch-friendly delays for fixed touchscreen
         startTimer (500);
 
+        // Right-click or long press will show context menu
         if (! isOnTouchDevice() && e.mods.isPopupMenu())
             showPopupMenu();
     }
@@ -202,9 +203,13 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         }
         else if (e.getNumberOfClicks() == 2)
         {
-            if (auto f = graph.graph.getNodeForId (pluginID))
-                if (auto* w = graph.getOrCreateWindowFor (f, PluginWindow::Type::normal))
-                    w->toFront (true);
+            // Double click opens the plugin editor in sidepanel
+            panel.showPluginEditorInSidePanel (pluginID);
+        }
+        else if (e.getNumberOfClicks() == 1 && ! e.mouseWasDraggedSinceMouseDown())
+        {
+            // Single click also opens sidepanel (for touch-friendly operation)
+            panel.showPluginEditorInSidePanel (pluginID);
         }
     }
 
@@ -232,6 +237,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         g.setColour (boxColour);
         g.fillRect (boxArea.toFloat());
+
+        // Draw bright border if this plugin is currently shown in sidepanel
+        bool isOpenInSidePanel = (panel.currentlyShowingNodeID == pluginID && panel.pluginEditorPanel != nullptr);
+        if (isOpenInSidePanel)
+        {
+            g.setColour (Colours::cyan.brighter());
+            g.drawRect (boxArea.toFloat(), 3.0f);
+        }
 
         g.setColour (findColour (TextEditor::textColourId));
         g.setFont (font);
@@ -690,10 +703,94 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
 
 
 //==============================================================================
+struct GraphEditorPanel::PluginEditorSidePanel final : public Component
+{
+    PluginEditorSidePanel (GraphEditorPanel& p, AudioProcessorGraph::NodeID nodeID)
+        : panel (p), pluginNodeID (nodeID)
+    {
+        setOpaque (true);
+        
+        addAndMakeVisible (closeButton);
+        closeButton.setButtonText ("X");
+        closeButton.onClick = [this] { panel.closePluginEditorSidePanel(); };
+        
+        if (auto* node = panel.graph.graph.getNodeForId (pluginNodeID))
+        {
+            if (auto* processor = node->getProcessor())
+            {
+                if (processor->hasEditor())
+                {
+                    editor.reset (processor->createEditorIfNeeded());
+                    if (editor != nullptr)
+                    {
+                        addAndMakeVisible (editor.get());
+                        
+                        // Calculate size based on editor size
+                        auto editorBounds = editor->getBounds();
+                        int panelWidth = jmax (300, editorBounds.getWidth() + 20);
+                        int panelHeight = editorBounds.getHeight() + 50; // Extra space for close button
+                        
+                        setSize (panelWidth, panelHeight);
+                    }
+                }
+            }
+        }
+    }
+    
+    ~PluginEditorSidePanel() override
+    {
+        if (editor != nullptr && panel.graph.graph.getNodeForId (pluginNodeID))
+        {
+            if (auto* node = panel.graph.graph.getNodeForId (pluginNodeID))
+            {
+                if (auto* processor = node->getProcessor())
+                {
+                    processor->editorBeingDeleted (editor.get());
+                }
+            }
+        }
+        editor = nullptr;
+    }
+    
+    void paint (Graphics& g) override
+    {
+        g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+        
+        // Draw border
+        g.setColour (Colours::white.withAlpha (0.1f));
+        g.drawRect (getLocalBounds(), 2);
+    }
+    
+    void resized() override
+    {
+        auto bounds = getLocalBounds();
+        
+        // Close button at top right
+        closeButton.setBounds (bounds.removeFromTop (40).removeFromRight (60).reduced (5));
+        
+        // Editor fills remaining space
+        if (editor != nullptr)
+        {
+            bounds.reduce (10, 10);
+            editor->setBounds (bounds);
+        }
+    }
+    
+    GraphEditorPanel& panel;
+    AudioProcessorGraph::NodeID pluginNodeID;
+    std::unique_ptr<AudioProcessorEditor> editor;
+    TextButton closeButton;
+    
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditorSidePanel)
+};
+
+
+//==============================================================================
 GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
 {
     graph.addChangeListener (this);
     setOpaque (true);
+    currentlyShowingNodeID = AudioProcessorGraph::NodeID();
 }
 
 GraphEditorPanel::~GraphEditorPanel()
@@ -790,6 +887,16 @@ GraphEditorPanel::PinComponent* GraphEditorPanel::findPinAt (Point<float> pos) c
 
 void GraphEditorPanel::resized()
 {
+    // Position the sidepanel if visible
+    if (pluginEditorPanel != nullptr)
+    {
+        auto bounds = getLocalBounds();
+        int panelWidth = pluginEditorPanel->getWidth();
+        
+        // Position panel on the right side
+        pluginEditorPanel->setBounds (bounds.removeFromRight (panelWidth));
+    }
+    
     updateComponents();
 }
 
@@ -803,6 +910,13 @@ void GraphEditorPanel::updateComponents()
     for (int i = nodes.size(); --i >= 0;)
         if (graph.graph.getNodeForId (nodes.getUnchecked (i)->pluginID) == nullptr)
             nodes.remove (i);
+
+    // Close sidepanel if the node was deleted
+    if (pluginEditorPanel != nullptr && 
+        graph.graph.getNodeForId (currentlyShowingNodeID) == nullptr)
+    {
+        closePluginEditorSidePanel();
+    }
 
     for (int i = connectors.size(); --i >= 0;)
         if (! graph.graph.isConnected (connectors.getUnchecked (i)->connection))
@@ -951,6 +1065,47 @@ void GraphEditorPanel::timerCallback()
     showPopupMenu (originalTouchPos);
 }
 
+void GraphEditorPanel::showPluginEditorInSidePanel (AudioProcessorGraph::NodeID nodeID)
+{
+    // If clicking on the same plugin that's already open, do nothing
+    if (currentlyShowingNodeID == nodeID && pluginEditorPanel != nullptr)
+        return;
+    
+    // Store old nodeID to repaint that component
+    auto oldNodeID = currentlyShowingNodeID;
+    
+    // Close existing panel if different plugin
+    if (pluginEditorPanel != nullptr && currentlyShowingNodeID != nodeID)
+        closePluginEditorSidePanel();
+    
+    // Create new panel for this plugin
+    currentlyShowingNodeID = nodeID;
+    pluginEditorPanel.reset (new PluginEditorSidePanel (*this, nodeID));
+    addAndMakeVisible (pluginEditorPanel.get());
+    
+    // Repaint both the old and new plugin components to update borders
+    if (auto* oldComp = getComponentForPlugin (oldNodeID))
+        oldComp->repaint();
+    
+    if (auto* newComp = getComponentForPlugin (nodeID))
+        newComp->repaint();
+    
+    resized();
+}
+
+void GraphEditorPanel::closePluginEditorSidePanel()
+{
+    auto oldNodeID = currentlyShowingNodeID;
+    
+    pluginEditorPanel = nullptr;
+    currentlyShowingNodeID = AudioProcessorGraph::NodeID();
+    
+    // Repaint the plugin component to remove border highlight
+    if (auto* comp = getComponentForPlugin (oldNodeID))
+        comp->repaint();
+    
+    resized();
+}
 //==============================================================================
 struct GraphDocumentComponent::TooltipBar final : public Component,
                                                   private Timer
@@ -1155,8 +1310,7 @@ void GraphDocumentComponent::createNewPlugin (const PluginDescriptionAndPreferen
 void GraphDocumentComponent::setDoublePrecision (bool)
 {
     graphPlayer.setProcessor (nullptr);
-    if (graph)
-        graphPlayer.setProcessor (&graph->graph);
+    graphPlayer.setProcessor (&graph->graph);
 }
 
 bool GraphDocumentComponent::closeAnyOpenPluginWindows()
