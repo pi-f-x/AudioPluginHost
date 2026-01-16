@@ -210,6 +210,10 @@ public:
 
     ~PluginWindow() override
     {
+        if (auto* processor = node->getProcessor())
+            if (auto* editor = dynamic_cast<AudioProcessorEditor*> (getContentComponent()))
+                processor->editorBeingDeleted (editor);
+        
         clearContentComponent();
     }
 
