@@ -592,7 +592,7 @@ void MainHostWindow::menuItemSelected (int menuItemID, int /*topLevelMenuIndex*/
     {
         if (graphHolder != nullptr)
             if (auto* graph = graphHolder->graph.get())
-                graph->clear();
+                graph->clearExceptEssentialNodes();
     }
    #if ! (JUCE_ANDROID || JUCE_IOS)
     else if (menuItemID >= 100 && menuItemID < 200)
@@ -709,7 +709,7 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         int i = 0;
 
         for (auto& t : internalTypes)
-            m.addItem (++i, t.name + " (" + t.pluginFormatName + ")");
+            m.addItem (++i, t.name);
     }
 
     m.addSeparator();

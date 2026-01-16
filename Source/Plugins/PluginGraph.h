@@ -85,6 +85,7 @@ public:
 
     //==============================================================================
     void clear();
+    void clearExceptEssentialNodes();
 
     PluginWindow* getOrCreateWindowFor (AudioProcessorGraph::Node*, PluginWindow::Type);
     void closeCurrentlyOpenWindowsFor (AudioProcessorGraph::NodeID);

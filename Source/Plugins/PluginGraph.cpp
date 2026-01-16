@@ -162,6 +162,30 @@ void PluginGraph::clear()
     changed();
 }
 
+void PluginGraph::clearExceptEssentialNodes()
+{
+    closeAnyOpenPluginWindows();
+    
+    // Get all nodes that need to be removed (everything except Audio Input/Output)
+    Array<NodeID> nodesToRemove;
+    for (auto* node : graph.getNodes())
+    {
+        if (auto* processor = node->getProcessor())
+        {
+            String name = processor->getName();
+            // Remove all nodes that are NOT Audio Input or Audio Output
+            if (name != "Audio Input" && name != "Audio Output")
+                nodesToRemove.add (node->nodeID);
+        }
+    }
+    
+    // Remove non-essential nodes
+    for (auto nodeID : nodesToRemove)
+        graph.removeNode (nodeID);
+    
+    changed();
+}
+
 PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node, PluginWindow::Type type)
 {
     jassert (node != nullptr);
@@ -224,7 +248,7 @@ void PluginGraph::newDocument()
 	//MIDI Filter von Start-Up Screen entfernen
     addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[0] }, { 0.5,  0.1 });
     //addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.25, 0.1 });
-    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[2] }, { 0.5,  0.9 });
+    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.9 });
     //addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[3] }, { 0.25, 0.9 });
 
     MessageManager::callAsync ([this]

@@ -38,6 +38,102 @@
 #include "MainHostWindow.h"
 
 //==============================================================================
+// NEW: Floating Plugin Menu Component
+struct GraphEditorPanel::FloatingPluginMenu final : public Component
+{
+    FloatingPluginMenu (GraphEditorPanel& p, Array<PluginDescriptionAndPreference> plugins)
+        : panel (p), pluginList (plugins)
+    {
+        setAlwaysOnTop (true);
+        
+        // Calculate grid layout
+        int itemsPerRow = 3;
+        int numRows = (pluginList.size() + itemsPerRow - 1) / itemsPerRow;
+        
+        // Create buttons for each plugin
+        for (int i = 0; i < pluginList.size(); ++i)
+        {
+            auto* button = new TextButton (pluginList[i].pluginDescription.name);
+            button->setClickingTogglesState (false);
+            button->onClick = [this, i]()
+            {
+                // Place plugin in center of screen
+                auto centerPos = panel.getLocalBounds().getCentre();
+                panel.createNewPlugin (pluginList[i], centerPos);
+                panel.hidePluginMenu();
+            };
+            
+            buttons.add (button);
+            addAndMakeVisible (button);
+        }
+        
+        // Size calculation: padding + grid of buttons
+        int buttonWidth = 180;
+        int buttonHeight = 50;
+        int padding = 20;
+        int gap = 10;
+        
+        int width = padding * 2 + itemsPerRow * buttonWidth + (itemsPerRow - 1) * gap;
+        int height = padding * 2 + numRows * buttonHeight + (numRows - 1) * gap;
+        
+        setSize (width, height);
+    }
+    
+    void paint (Graphics& g) override
+    {
+        // Elegant semi-transparent background with gradient
+        g.setGradientFill (ColourGradient (Colour (0xdd000000), 0, 0,
+                                          Colour (0xee222222), 0, (float) getHeight(),
+                                          false));
+        g.fillRoundedRectangle (getLocalBounds().toFloat(), 15.0f);
+        
+        // Outer glow effect
+        g.setColour (Colours::cyan.withAlpha (0.3f));
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (2), 15.0f, 3.0f);
+        
+        // Title at top
+        g.setColour (Colours::white);
+        g.setFont (Font (24.0f, Font::bold));
+        g.drawText ("Select Effect", getLocalBounds().removeFromTop (60), Justification::centred);
+    }
+    
+    void resized() override
+    {
+        auto bounds = getLocalBounds().reduced (20);
+        bounds.removeFromTop (60); // Space for title
+        
+        int itemsPerRow = 3;
+        int buttonWidth = 180;
+        int buttonHeight = 50;
+        int gap = 10;
+        
+        int currentRow = 0;
+        int currentCol = 0;
+        
+        for (auto* button : buttons)
+        {
+            int x = currentCol * (buttonWidth + gap);
+            int y = currentRow * (buttonHeight + gap);
+            
+            button->setBounds (bounds.getX() + x, bounds.getY() + y, buttonWidth, buttonHeight);
+            
+            currentCol++;
+            if (currentCol >= itemsPerRow)
+            {
+                currentCol = 0;
+                currentRow++;
+            }
+        }
+    }
+    
+    GraphEditorPanel& panel;
+    Array<PluginDescriptionAndPreference> pluginList;
+    OwnedArray<TextButton> buttons;
+    
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FloatingPluginMenu)
+};
+
+//==============================================================================
 struct GraphEditorPanel::PinComponent final : public Component,
                                               public SettableTooltipClient
 {
@@ -161,17 +257,38 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         originalPos = localPointToGlobal (Point<int>());
 
         toFront (true);
+        
+        // Check if in delete mode
+        if (panel.isDeleteMode())
+        {
+            // Check if this is Audio Input or Audio Output - these cannot be deleted
+            bool isEssentialNode = false;
+            if (auto* processor = getProcessor())
+            {
+                String name = processor->getName();
+                isEssentialNode = (name == "Audio Input" || name == "Audio Output");
+            }
+            
+            if (!isEssentialNode)
+            {
+                // Delete this plugin immediately
+                graph.graph.removeNode (pluginID);
+            }
+            return; // Don't proceed with normal drag behavior
+        }
 
-        // Always use touch-friendly delays for fixed touchscreen
+        // Normal behavior when not in delete mode
         startTimer (500);
 
-        // Right-click or long press will show context menu
-        if (! isOnTouchDevice() && e.mods.isPopupMenu())
-            showPopupMenu();
+        // Removed right-click menu functionality
     }
 
     void mouseDrag (const MouseEvent& e) override
     {
+        // Don't drag in delete mode
+        if (panel.isDeleteMode())
+            return;
+            
         if (e.getDistanceFromDragStart() > 5)
             stopTimer();
 
@@ -194,6 +311,10 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void mouseUp (const MouseEvent& e) override
     {
+        // Don't do anything in delete mode (deletion happens in mouseDown)
+        if (panel.isDeleteMode())
+            return;
+            
         stopTimer();
         callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
 
@@ -364,7 +485,21 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void showPopupMenu()
     {
         menu.reset (new PopupMenu);
-        menu->addItem ("Delete this filter", [this] { graph.graph.removeNode (pluginID); });
+        
+        // Check if this is Audio Input or Audio Output - these cannot be deleted
+        bool isEssentialNode = false;
+        if (auto* processor = getProcessor())
+        {
+            String name = processor->getName();
+            isEssentialNode = (name == "Audio Input" || name == "Audio Output");
+        }
+        
+        // Only add delete option if not an essential node
+        if (!isEssentialNode)
+        {
+            menu->addItem ("Delete this filter", [this] { graph.graph.removeNode (pluginID); });
+        }
+        
         menu->addItem ("Disconnect all pins", [this] { graph.graph.disconnectNode (pluginID); });
         menu->addItem ("Toggle Bypass", [this]
         {
@@ -424,7 +559,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void timerCallback() override
     {
         stopTimer();
-        showPopupMenu();
+        // Removed: No longer showing popup menu on timer
     }
 
     void parameterValueChanged (int, float) override
@@ -727,8 +862,13 @@ struct GraphEditorPanel::PluginEditorSidePanel final : public Component
                         
                         // Calculate size based on editor size
                         auto editorBounds = editor->getBounds();
-                        int panelWidth = jmax (300, editorBounds.getWidth() + 20);
-                        int panelHeight = editorBounds.getHeight() + 50; // Extra space for close button
+                        
+                        // Use a minimum width but allow the panel to be wider if needed
+                        int panelWidth = jmax (350, editorBounds.getWidth() + 20);
+                        
+                        // For height: Use a generous value to allow the panel to extend downward
+                        // We'll use the parent's height in resized() anyway
+                        int panelHeight = jmax (600, editorBounds.getHeight() + 80);
                         
                         setSize (panelWidth, panelHeight);
                     }
@@ -772,7 +912,26 @@ struct GraphEditorPanel::PluginEditorSidePanel final : public Component
         if (editor != nullptr)
         {
             bounds.reduce (10, 10);
-            editor->setBounds (bounds);
+            
+            // Get editor's preferred size
+            auto editorBounds = editor->getBounds();
+            int editorWidth = editorBounds.getWidth();
+            int editorHeight = editorBounds.getHeight();
+            
+            if (editorHeight < bounds.getHeight())
+            {
+                // Editor is smaller - center it vertically
+                int yOffset = (bounds.getHeight() - editorHeight) / 2;
+                editor->setBounds (bounds.getX(), 
+                                  bounds.getY() + yOffset, 
+                                  jmin (editorWidth, bounds.getWidth()), 
+                                  editorHeight);
+            }
+            else
+            {
+                // Editor needs full space
+                editor->setBounds (bounds);
+            }
         }
     }
     
@@ -791,6 +950,20 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
     graph.addChangeListener (this);
     setOpaque (true);
     currentlyShowingNodeID = AudioProcessorGraph::NodeID();
+    
+    // Setup + Button
+    addPluginButton.setButtonText ("+");
+    addPluginButton.setColour (TextButton::buttonColourId, Colours::green);
+    addPluginButton.setColour (TextButton::textColourOffId, Colours::white);
+    addPluginButton.onClick = [this]() { showPluginMenu(); };
+    addAndMakeVisible (addPluginButton);
+    
+    // Setup Delete Button (???)
+    deleteButton.setButtonText ("DELETE");
+    deleteButton.setColour (TextButton::buttonColourId, Colours::grey);
+    deleteButton.setColour (TextButton::textColourOffId, Colours::white);
+    deleteButton.onClick = [this]() { toggleDeleteMode(); };
+    addAndMakeVisible (deleteButton);
 }
 
 GraphEditorPanel::~GraphEditorPanel()
@@ -826,15 +999,26 @@ GraphDocumentComponent::~GraphDocumentComponent()
 void GraphEditorPanel::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+    
+    // Draw red border if in delete mode
+    if (deleteMode)
+    {
+        g.setColour (Colours::red);
+        g.drawRect (getLocalBounds(), 5);
+        
+        // Draw warning text
+        g.setFont (Font (20.0f, Font::bold));
+        g.drawText ("DELETE MODE - Click effects to delete", 
+                   getLocalBounds().removeFromTop (40), 
+                   Justification::centred);
+    }
 }
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
 {
+    // Entferne Rechtsklick-Menü Funktionalität komplett
     originalTouchPos = e.position.toInt();
-    startTimer (750);
-
-    if (e.mods.isPopupMenu())
-        showPopupMenu (e.position.toInt());
+    // Kein Timer, kein Popup-Menü mehr
 }
 
 void GraphEditorPanel::mouseUp (const MouseEvent&)
@@ -887,13 +1071,27 @@ GraphEditorPanel::PinComponent* GraphEditorPanel::findPinAt (Point<float> pos) c
 
 void GraphEditorPanel::resized()
 {
-    // Position the sidepanel if visible
+    auto bounds = getLocalBounds();
+    
+    // Position buttons in TOP-LEFT corner
+    int buttonWidth = 80;
+    int buttonHeight = 40;
+    int padding = 10;
+    
+    auto topLeft = bounds.removeFromTop (buttonHeight + padding * 2).removeFromLeft (buttonWidth * 2 + padding * 3);
+    
+    addPluginButton.setBounds (topLeft.removeFromLeft (buttonWidth).reduced (padding));
+    deleteButton.setBounds (topLeft.removeFromLeft (buttonWidth).reduced (padding));
+    
+    // Reset bounds to full height for sidepanel (buttons are now on the left, so panel can go all the way up)
+    bounds = getLocalBounds();
+    
+    // Position the sidepanel if visible - NOW IT GOES ALL THE WAY TO THE TOP
     if (pluginEditorPanel != nullptr)
     {
-        auto bounds = getLocalBounds();
         int panelWidth = pluginEditorPanel->getWidth();
         
-        // Position panel on the right side
+        // Position panel on the right side, FULL HEIGHT
         pluginEditorPanel->setBounds (bounds.removeFromRight (panelWidth));
     }
     
@@ -1062,14 +1260,17 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
 void GraphEditorPanel::timerCallback()
 {
     stopTimer();
-    showPopupMenu (originalTouchPos);
+    // Removed: No longer showing popup menu on timer
 }
 
 void GraphEditorPanel::showPluginEditorInSidePanel (AudioProcessorGraph::NodeID nodeID)
 {
-    // If clicking on the same plugin that's already open, do nothing
+    // If clicking on the same plugin that's already open, CLOSE IT (toggle behavior)
     if (currentlyShowingNodeID == nodeID && pluginEditorPanel != nullptr)
+    {
+        closePluginEditorSidePanel();
         return;
+    }
     
     // Store old nodeID to repaint that component
     auto oldNodeID = currentlyShowingNodeID;
@@ -1106,6 +1307,68 @@ void GraphEditorPanel::closePluginEditorSidePanel()
     
     resized();
 }
+
+//==============================================================================
+// NEW: Floating Plugin Menu Methods
+void GraphEditorPanel::showPluginMenu()
+{
+    if (floatingMenu != nullptr)
+    {
+        hidePluginMenu();
+        return;
+    }
+    
+    // Get ONLY our custom Fx effects (exclude Audio Input/Output)
+    Array<PluginDescriptionAndPreference> availablePlugins;
+    
+    if (auto* mainWindow = findParentComponentOfClass<MainHostWindow>())
+    {
+        // Only add internal Fx plugins, exclude Audio Input and Audio Output
+        auto& internalTypes = mainWindow->internalTypes;
+        for (const auto& desc : internalTypes)
+        {
+            // Exclude Audio Input and Audio Output
+            if (desc.name != "Audio Input" && desc.name != "Audio Output")
+            {
+                availablePlugins.add (PluginDescriptionAndPreference { desc });
+            }
+        }
+    }
+    
+    if (availablePlugins.isEmpty())
+        return;
+    
+    floatingMenu.reset (new FloatingPluginMenu (*this, availablePlugins));
+    addAndMakeVisible (floatingMenu.get());
+    
+    // Center the menu
+    floatingMenu->setCentrePosition (getWidth() / 2, getHeight() / 2);
+}
+
+void GraphEditorPanel::hidePluginMenu()
+{
+    floatingMenu = nullptr;
+}
+
+//==============================================================================
+// NEW: Delete Mode Methods
+void GraphEditorPanel::toggleDeleteMode()
+{
+    deleteMode = !deleteMode;
+    
+    // Update button color
+    if (deleteMode)
+    {
+        deleteButton.setColour (TextButton::buttonColourId, Colours::red);
+    }
+    else
+    {
+        deleteButton.setColour (TextButton::buttonColourId, Colours::grey);
+    }
+    
+    repaint();
+}
+
 //==============================================================================
 struct GraphDocumentComponent::TooltipBar final : public Component,
                                                   private Timer

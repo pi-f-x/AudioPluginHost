@@ -47,6 +47,9 @@ inline String getFormatSuffix (const AudioProcessor* plugin)
         return String();
     }();
 
+    if (format == "Internal")
+        return String();
+
     return format.isNotEmpty() ? (" (" + format + ")") : format;
 }
 

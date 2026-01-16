@@ -67,6 +67,15 @@ public:
 
     //==============================================================================
     void showPopupMenu (Point<int> position);
+    
+    //==============================================================================
+    // NEW: Floating plugin menu
+    void showPluginMenu();
+    void hidePluginMenu();
+    
+    // NEW: Delete mode
+    void toggleDeleteMode();
+    bool isDeleteMode() const { return deleteMode; }
 
     //==============================================================================
     void beginConnectorDrag (AudioProcessorGraph::NodeAndChannel source,
@@ -90,11 +99,18 @@ private:
     struct PluginComponent;
     struct ConnectorComponent;
     struct PinComponent;
+    struct FloatingPluginMenu;
 
     OwnedArray<PluginComponent> nodes;
     OwnedArray<ConnectorComponent> connectors;
     std::unique_ptr<ConnectorComponent> draggingConnector;
     std::unique_ptr<PopupMenu> menu;
+    
+    // NEW: UI Buttons and delete mode
+    TextButton addPluginButton;
+    TextButton deleteButton;
+    std::unique_ptr<FloatingPluginMenu> floatingMenu;
+    bool deleteMode = false;
 
     PluginComponent* getComponentForPlugin (AudioProcessorGraph::NodeID) const;
     ConnectorComponent* getComponentForConnection (const AudioProcessorGraph::Connection&) const;

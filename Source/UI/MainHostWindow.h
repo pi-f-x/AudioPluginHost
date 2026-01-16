@@ -122,6 +122,10 @@ public:
     std::optional<PluginDescriptionAndPreference> getChosenType (int menuID) const;
 
     std::unique_ptr<GraphDocumentComponent> graphHolder;
+    
+    // Make these public for access by FloatingPluginMenu
+    std::vector<PluginDescription> internalTypes;
+    KnownPluginList knownPluginList;
 
 private:
     //==============================================================================
@@ -137,8 +141,6 @@ private:
     AudioDeviceManager deviceManager;
     AudioPluginFormatManager formatManager;
 
-    std::vector<PluginDescription> internalTypes;
-    KnownPluginList knownPluginList;
     KnownPluginList::SortMethod pluginSortMethod;
     Array<PluginDescriptionAndPreference> pluginDescriptionsAndPreference;
 
