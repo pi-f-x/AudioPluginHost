@@ -46,6 +46,9 @@ struct GraphEditorPanel::FloatingPluginMenu final : public Component
     {
         setAlwaysOnTop (true);
         
+        // Create a container for the buttons
+        buttonContainer.reset (new Component());
+        
         // Calculate grid layout
         int itemsPerRow = 3;
         int numRows = (pluginList.size() + itemsPerRow - 1) / itemsPerRow;
@@ -64,7 +67,7 @@ struct GraphEditorPanel::FloatingPluginMenu final : public Component
             };
             
             buttons.add (button);
-            addAndMakeVisible (button);
+            buttonContainer->addAndMakeVisible (button);
         }
         
         // Size calculation: padding + grid of buttons
@@ -73,8 +76,42 @@ struct GraphEditorPanel::FloatingPluginMenu final : public Component
         int padding = 20;
         int gap = 10;
         
-        int width = padding * 2 + itemsPerRow * buttonWidth + (itemsPerRow - 1) * gap;
-        int height = padding * 2 + numRows * buttonHeight + (numRows - 1) * gap;
+        // Container needs full height for all buttons
+        int containerWidth = itemsPerRow * buttonWidth + (itemsPerRow - 1) * gap;
+        int containerHeight = numRows * buttonHeight + (numRows - 1) * gap;
+        buttonContainer->setSize (containerWidth, containerHeight);
+        
+        // Position all buttons in the container
+        int currentRow = 0;
+        int currentCol = 0;
+        
+        for (auto* button : buttons)
+        {
+            int x = currentCol * (buttonWidth + gap);
+            int y = currentRow * (buttonHeight + gap);
+            
+            button->setBounds (x, y, buttonWidth, buttonHeight);
+            
+            currentCol++;
+            if (currentCol >= itemsPerRow)
+            {
+                currentCol = 0;
+                currentRow++;
+            }
+        }
+        
+        // Add container to viewport
+        viewport.setViewedComponent (buttonContainer.get(), false);
+        viewport.setScrollBarsShown (true, false);
+        addAndMakeVisible (viewport);
+        
+        // Menu size: Larger to show more content, but limit max height for scrolling
+        int titleHeight = 60;
+        int maxViewportHeight = 400; // Maximum height before scrolling kicks in
+        int actualContentHeight = jmin (containerHeight, maxViewportHeight);
+        
+        int width = padding * 2 + containerWidth;
+        int height = titleHeight + padding * 2 + actualContentHeight;
         
         setSize (width, height);
     }
@@ -102,33 +139,15 @@ struct GraphEditorPanel::FloatingPluginMenu final : public Component
         auto bounds = getLocalBounds().reduced (20);
         bounds.removeFromTop (60); // Space for title
         
-        int itemsPerRow = 3;
-        int buttonWidth = 180;
-        int buttonHeight = 50;
-        int gap = 10;
-        
-        int currentRow = 0;
-        int currentCol = 0;
-        
-        for (auto* button : buttons)
-        {
-            int x = currentCol * (buttonWidth + gap);
-            int y = currentRow * (buttonHeight + gap);
-            
-            button->setBounds (bounds.getX() + x, bounds.getY() + y, buttonWidth, buttonHeight);
-            
-            currentCol++;
-            if (currentCol >= itemsPerRow)
-            {
-                currentCol = 0;
-                currentRow++;
-            }
-        }
+        // Viewport takes remaining space
+        viewport.setBounds (bounds);
     }
     
     GraphEditorPanel& panel;
     Array<PluginDescriptionAndPreference> pluginList;
     OwnedArray<TextButton> buttons;
+    std::unique_ptr<Component> buttonContainer;
+    Viewport viewport;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FloatingPluginMenu)
 };
