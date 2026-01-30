@@ -45,6 +45,8 @@
 #include "./Fx/ChorusCE2.h"
 #include "./Fx/PitchShifter.h"
 #include "./Fx/AnalogDelay.h"
+#include "./Fx/Tuner.h"
+#include "./Fx/GainBoost.h"
 
 
 //==============================================================================
@@ -218,8 +220,9 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<InternalPlugin>(std::make_unique<ChorusCE2>()); },
 		[] { return std::make_unique<InternalPlugin>(std::make_unique<AnalogDelay>()); },
         [] { return std::make_unique<InternalPlugin>(std::make_unique<PitchShifter>()); },
-        [] { return std::make_unique<InternalPlugin>(std::make_unique<Phase90Processor>()); }
-
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<Phase90Processor>()); },
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<ChromaticTuner>()); },
+        [] { return std::make_unique<InternalPlugin>(std::make_unique<GainBoostProcessor>()); }
     }
 {
 }

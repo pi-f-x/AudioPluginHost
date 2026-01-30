@@ -66,6 +66,8 @@
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">
         <GROUP id="{C6F18735-16F3-3AB3-58F1-44BB680913EC}" name="Fx">
+          <FILE id="nQCIx1" name="GainBoost.h" compile="0" resource="0" file="Source/Plugins/Fx/GainBoost.h"/>
+          <FILE id="IUdtzZ" name="Tuner.h" compile="0" resource="0" file="Source/Plugins/Fx/Tuner.h"/>
           <FILE id="HNDTqJ" name="BigMuffFuzz.h" compile="0" resource="0" file="Source/Plugins/Fx/BigMuffFuzz.h"/>
           <FILE id="Uh2Mni" name="AnalogDelay.h" compile="0" resource="0" file="Source/Plugins/Fx/AnalogDelay.h"/>
           <FILE id="XfdLct" name="ChorusCE2.h" compile="0" resource="0" file="Source/Plugins/Fx/ChorusCE2.h"/>
