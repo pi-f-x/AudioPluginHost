@@ -93,14 +93,13 @@ public:
     
     struct PluginEditorSidePanel;
     std::unique_ptr<PluginEditorSidePanel> pluginEditorPanel;
+
     AudioProcessorGraph::NodeID currentlyShowingNodeID;
 
 private:
     struct PluginComponent;
     struct ConnectorComponent;
     struct PinComponent;
-    struct ControlPinComponent;
-    struct FixedControlModuleComponent;
     struct FloatingPluginMenu;
 
     OwnedArray<PluginComponent> nodes;
@@ -113,9 +112,6 @@ private:
     TextButton deleteButton;
     std::unique_ptr<FloatingPluginMenu> floatingMenu;
     bool deleteMode = false;
-
-    std::unique_ptr<FixedControlModuleComponent> potentiometerModule;
-    std::unique_ptr<FixedControlModuleComponent> footswitchModule;
 
     PluginComponent* getComponentForPlugin (AudioProcessorGraph::NodeID) const;
     ConnectorComponent* getComponentForConnection (const AudioProcessorGraph::Connection&) const;

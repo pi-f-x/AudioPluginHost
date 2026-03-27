@@ -245,11 +245,9 @@ void PluginGraph::newDocument()
 
     jassert (internalFormat.getAllTypes().size() > 2);
 
-	//MIDI Filter von Start-Up Screen entfernen
+	// Audio Input at top, Audio Output higher up to avoid overlap with footswitches
     addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[0] }, { 0.5,  0.1 });
-    //addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.25, 0.1 });
-    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.9 });
-    //addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[3] }, { 0.25, 0.9 });
+    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.6 });  // Moved from 0.9 to 0.6
 
     MessageManager::callAsync ([this]
     {

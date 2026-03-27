@@ -232,39 +232,6 @@ struct GraphEditorPanel::PinComponent final : public Component,
     };
 
 //==============================================================================
-struct GraphEditorPanel::ControlPinComponent final : public Component,
-                                                     public SettableTooltipClient
-    {
-        ControlPinComponent (Colour colourToUse, const String& tipText, bool inputStyle)
-            : colour (colourToUse), isInput (inputStyle)
-        {
-            setTooltip (tipText);
-            setSize (28, 28);
-            setInterceptsMouseClicks (false, false);
-        }
-
-        void paint (Graphics& g) override
-        {
-            auto w = (float) getWidth();
-            auto h = (float) getHeight();
-
-            Path p;
-            p.addEllipse (w * 0.25f, h * 0.25f, w * 0.5f, h * 0.5f);
-            p.addRectangle (w * 0.4f, isInput ? (0.5f * h) : 0.0f, w * 0.2f, h * 0.5f);
-
-            p.applyTransform (AffineTransform::rotation (-MathConstants<float>::halfPi, w * 0.5f, h * 0.5f));
-
-            g.setColour (colour);
-            g.fillPath (p);
-        }
-
-        Colour colour;
-        const bool isInput;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ControlPinComponent)
-    };
-
-//==============================================================================
 struct GraphEditorPanel::PluginComponent final : public Component,
                                                  public Timer,
                                                  private AudioProcessorParameter::Listener,
@@ -448,19 +415,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                                         pin->isInput ? 0 : (getHeight() - pinSize),
                                         pinSize, pinSize);
                     }
-
-                    if (! controlPins.isEmpty())
-                    {
-                        const int availableHeight = getHeight() - (pinSize * 2);
-                        const float step = (controlPins.size() + 1) > 0 ? (availableHeight / (float) (controlPins.size() + 1)) : 0.0f;
-                        const int controlPinX = 6;
-
-                        for (int i = 0; i < controlPins.size(); ++i)
-                        {
-                            const int centreY = roundToInt (pinSize + ((float) (i + 1) * step));
-                            controlPins[i]->setBounds (controlPinX, centreY - controlPinSize / 2, controlPinSize, controlPinSize);
-                        }
-                    }
                 }
             }
         }
@@ -519,29 +473,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
                 if (processor.producesMidi())
                     addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, AudioProcessorGraph::midiChannelIndex }, false)));
-            }
-
-            const bool isEssentialNode = (processor.getName() == "Audio Input" || processor.getName() == "Audio Output");
-            const bool hasBypassPin = (processor.getBypassParameter() != nullptr);
-            const int totalParams = processor.getParameters().size();
-            const int bluePinCount = jmax (0, totalParams - (hasBypassPin ? 1 : 0));
-            const int desiredControlPins = isEssentialNode ? 0 : (bluePinCount + (hasBypassPin ? 1 : 0));
-
-            if (controlPins.size() != desiredControlPins || controlBluePins != bluePinCount || controlHasBypass != hasBypassPin)
-            {
-                controlPins.clear();
-
-                if (! isEssentialNode)
-                {
-                    for (int i = 0; i < bluePinCount; ++i)
-                        addAndMakeVisible (controlPins.add (new ControlPinComponent (Colours::blue, "Control " + String (i + 1), true)));
-
-                    if (hasBypassPin)
-                        addAndMakeVisible (controlPins.add (new ControlPinComponent (Colours::red, "Bypass", true)));
-                }
-
-                controlBluePins = bluePinCount;
-                controlHasBypass = hasBypassPin;
             }
 
             resized();
@@ -709,13 +640,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         PluginGraph& graph;
         const AudioProcessorGraph::NodeID pluginID;
         OwnedArray<PinComponent> pins;
-        OwnedArray<ControlPinComponent> controlPins;
         int numInputs = 0, numOutputs = 0;
         // Fixed larger pin size for 800x480 touchscreen
         int pinSize = 28;
-        int controlPinSize = 28;
-        int controlBluePins = 0;
-        bool controlHasBypass = false;
         Point<int> originalPos;
         Font font;
         int numIns = 0, numOuts = 0;
@@ -733,81 +660,6 @@ Point<float> GraphEditorPanel::PluginComponent::getPinPos (int index, bool isInp
 
     return {};
 }
-
-//==============================================================================
-struct GraphEditorPanel::FixedControlModuleComponent final : public Component
-{
-    FixedControlModuleComponent (const String& moduleLabel, int pinCount, Colour pinColour)
-        : label (moduleLabel), colour (pinColour)
-    {
-        setInterceptsMouseClicks (true, false);
-
-        for (int i = 0; i < pinCount; ++i)
-            addAndMakeVisible (pins.add (new ControlPinComponent (pinColour, moduleLabel, false)));
-
-        setSize (bodyWidth + pinOffset, normalHeight);
-    }
-
-    void mouseDoubleClick (const MouseEvent&) override
-    {
-        minimized = !minimized;
-        resized();
-        if (getParentComponent())
-            getParentComponent()->resized();
-    }
-
-    void paint (Graphics& g) override
-    {
-        int drawHeight = minimized ? minimizedHeight : normalHeight;
-        auto boxArea = Rectangle<int> (0, 0, bodyWidth, drawHeight).reduced (4);
-        auto boxColour = findColour (TextEditor::backgroundColourId).darker (0.1f);
-
-        g.setColour (boxColour);
-        g.fillRect (boxArea.toFloat());
-
-        g.setColour (Colours::black.withAlpha (0.35f));
-        g.drawRect (boxArea.toFloat(), 2.0f);
-
-        if (!minimized)
-        {
-            g.setColour (findColour (TextEditor::textColourId));
-            g.setFont (Font (16.0f, Font::bold));
-            g.drawFittedText (label, boxArea.reduced (10, 6), Justification::centred, 2);
-        }
-    }
-
-    void resized() override
-    {
-        int drawHeight = minimized ? minimizedHeight : normalHeight;
-        setSize (bodyWidth + pinOffset, drawHeight);
-
-        if (pins.isEmpty())
-            return;
-
-        const int padding = 6;
-        const int availableHeight = drawHeight - (padding * 2);
-        const float step = availableHeight / (float) (pins.size() + 1);
-        const int pinSize = 28;
-        const int pinX = bodyWidth - pinSize + pinOffset;
-
-        for (int i = 0; i < pins.size(); ++i)
-        {
-            const int centreY = roundToInt (padding + ((float) (i + 1) * step));
-            pins[i]->setBounds (pinX, centreY - pinSize / 2, pinSize, pinSize);
-        }
-    }
-
-    String label;
-    Colour colour;
-    int bodyWidth = 160;
-    int pinOffset = 24;
-    int normalHeight = 110;
-    int minimizedHeight = 40;
-    bool minimized = false;
-    OwnedArray<ControlPinComponent> pins;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FixedControlModuleComponent)
-};
 
 //==============================================================================
 struct GraphEditorPanel::ConnectorComponent final : public Component,
@@ -885,113 +737,23 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
             p2 = dest->getPinPos (connection.destination.channelIndex, true);
     }
 
+    void setLineColour (bool shouldUse, Colour colourToUse = Colours::transparentBlack)
+    {
+        useLineColour = shouldUse;
+        lineColour = colourToUse;
+        repaint();
+    }
+
     void paint (Graphics& g) override
     {
-        if (connection.source.isMIDI() || connection.destination.isMIDI())
+        if (useLineColour)
+            g.setColour (lineColour);
+        else if (connection.source.isMIDI() || connection.destination.isMIDI())
             g.setColour (Colours::red);
         else
             g.setColour (Colours::green);
 
         g.fillPath (linePath);
-    }
-
-    bool hitTest (int x, int y) override
-    {
-        auto pos = Point<int> (x, y).toFloat();
-
-        if (hitPath.contains (pos))
-        {
-            double distanceFromStart, distanceFromEnd;
-            getDistancesFromEnds (pos, distanceFromStart, distanceFromEnd);
-
-            // avoid clicking the connector when over a pin
-            return distanceFromStart > 7.0 && distanceFromEnd > 7.0;
-        }
-
-        return false;
-    }
-
-    void mouseDown (const MouseEvent&) override
-    {
-        dragging = false;
-    }
-
-    void mouseDrag (const MouseEvent& e) override
-    {
-        if (dragging)
-        {
-            panel.dragConnector (e);
-        }
-        else if (e.mouseWasDraggedSinceMouseDown())
-        {
-            dragging = true;
-
-            graph.graph.removeConnection (connection);
-
-            double distanceFromStart, distanceFromEnd;
-            getDistancesFromEnds (getPosition().toFloat() + e.position, distanceFromStart, distanceFromEnd);
-            const bool isNearerSource = (distanceFromStart < distanceFromEnd);
-
-            AudioProcessorGraph::NodeAndChannel dummy { {}, 0 };
-
-            panel.beginConnectorDrag (isNearerSource ? dummy : connection.source,
-                                      isNearerSource ? connection.destination : dummy,
-                                      e);
-        }
-    }
-
-    void mouseUp (const MouseEvent& e) override
-    {
-        if (dragging)
-            panel.endDraggingConnector (e);
-    }
-
-    void resized() override
-    {
-        Point<float> p1, p2;
-        getPoints (p1, p2);
-
-        lastInputPos = p1;
-        lastOutputPos = p2;
-
-        p1 -= getPosition().toFloat();
-        p2 -= getPosition().toFloat();
-
-        linePath.clear();
-        linePath.startNewSubPath (p1);
-        linePath.cubicTo (p1.x, p1.y + (p2.y - p1.y) * 0.33f,
-                          p2.x, p1.y + (p2.y - p1.y) * 0.66f,
-                          p2.x, p2.y);
-
-        PathStrokeType wideStroke (8.0f);
-        wideStroke.createStrokedPath (hitPath, linePath);
-
-        PathStrokeType stroke (2.5f);
-        stroke.createStrokedPath (linePath, linePath);
-
-        auto arrowW = 5.0f;
-        auto arrowL = 4.0f;
-
-        Path arrow;
-        arrow.addTriangle (-arrowL, arrowW,
-                           -arrowL, -arrowW,
-                           arrowL, 0.0f);
-
-        arrow.applyTransform (AffineTransform()
-                                .rotated (MathConstants<float>::halfPi - (float) atan2 (p2.x - p1.x, p2.y - p1.y))
-                                .translated ((p1 + p2) * 0.5f));
-
-        linePath.addPath (arrow);
-        linePath.setUsingNonZeroWinding (true);
-    }
-
-    void getDistancesFromEnds (Point<float> p, double& distanceFromStart, double& distanceFromEnd) const
-    {
-        Point<float> p1, p2;
-        getPoints (p1, p2);
-
-        distanceFromStart = p1.getDistanceFrom (p);
-        distanceFromEnd   = p2.getDistanceFrom (p);
     }
 
     GraphEditorPanel& panel;
@@ -1000,6 +762,8 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
     Point<float> lastInputPos, lastOutputPos;
     Path linePath, hitPath;
     bool dragging = false;
+    bool useLineColour = false;
+    Colour lineColour = Colours::transparentBlack;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ConnectorComponent)
 };
@@ -1012,11 +776,12 @@ struct GraphEditorPanel::PluginEditorSidePanel final : public Component
         : panel (p), pluginNodeID (nodeID)
     {
         setOpaque (true);
-        
+        setSize (380, 600);
+
         addAndMakeVisible (closeButton);
         closeButton.setButtonText ("X");
         closeButton.onClick = [this] { panel.closePluginEditorSidePanel(); };
-        
+
         if (auto* node = panel.graph.graph.getNodeForId (pluginNodeID))
         {
             if (auto* processor = node->getProcessor())
@@ -1027,24 +792,18 @@ struct GraphEditorPanel::PluginEditorSidePanel final : public Component
                     if (editor != nullptr)
                     {
                         addAndMakeVisible (editor.get());
-                        
-                        // Calculate size based on editor size
+
                         auto editorBounds = editor->getBounds();
-                        
-                        // Use a minimum width but allow the panel to be wider if needed
-                        int panelWidth = jmax (350, editorBounds.getWidth() + 20);
-                        
-                        // For height: Use a generous value to allow the panel to extend downward
-                        // We'll use the parent's height in resized() anyway
+                        int panelWidth = jmax (380, editorBounds.getWidth() + 20);
                         int panelHeight = jmax (600, editorBounds.getHeight() + 80);
-                        
+
                         setSize (panelWidth, panelHeight);
                     }
                 }
             }
         }
     }
-    
+
     ~PluginEditorSidePanel() override
     {
         if (editor != nullptr && panel.graph.graph.getNodeForId (pluginNodeID))
@@ -1052,65 +811,57 @@ struct GraphEditorPanel::PluginEditorSidePanel final : public Component
             if (auto* node = panel.graph.graph.getNodeForId (pluginNodeID))
             {
                 if (auto* processor = node->getProcessor())
-                {
                     processor->editorBeingDeleted (editor.get());
-                }
             }
         }
+
         editor = nullptr;
     }
-    
+
     void paint (Graphics& g) override
     {
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
-        
-        // Draw border
         g.setColour (Colours::white.withAlpha (0.1f));
         g.drawRect (getLocalBounds(), 2);
     }
-    
+
     void resized() override
     {
         auto bounds = getLocalBounds();
-        
-        // Close button at top right
-        closeButton.setBounds (bounds.removeFromTop (40).removeFromRight (60).reduced (5));
-        
-        // Editor fills remaining space
+
+        auto header = bounds.removeFromTop (42);
+        closeButton.setBounds (header.removeFromRight (60).reduced (5));
+
         if (editor != nullptr)
         {
             bounds.reduce (10, 10);
-            
-            // Get editor's preferred size
+
             auto editorBounds = editor->getBounds();
             int editorWidth = editorBounds.getWidth();
             int editorHeight = editorBounds.getHeight();
-            
+
             if (editorHeight < bounds.getHeight())
             {
-                // Editor is smaller - center it vertically
                 int yOffset = (bounds.getHeight() - editorHeight) / 2;
-                editor->setBounds (bounds.getX(), 
-                                  bounds.getY() + yOffset, 
-                                  jmin (editorWidth, bounds.getWidth()), 
+                editor->setBounds (bounds.getX(),
+                                  bounds.getY() + yOffset,
+                                  jmin (editorWidth, bounds.getWidth()),
                                   editorHeight);
             }
             else
             {
-                // Editor needs full space
                 editor->setBounds (bounds);
             }
         }
     }
-    
+
     GraphEditorPanel& panel;
     AudioProcessorGraph::NodeID pluginNodeID;
     std::unique_ptr<AudioProcessorEditor> editor;
     TextButton closeButton;
-    
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditorSidePanel)
 };
-
 
 //==============================================================================
 GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
@@ -1132,42 +883,15 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
     deleteButton.setColour (TextButton::textColourOffId, Colours::white);
     deleteButton.onClick = [this]() { toggleDeleteMode(); };
     addAndMakeVisible (deleteButton);
-    
-    potentiometerModule = std::make_unique<FixedControlModuleComponent> ("Potentiometer", 2, Colours::blue);
-    addAndMakeVisible (potentiometerModule.get());
-
-    footswitchModule = std::make_unique<FixedControlModuleComponent> ("Footswitch", 3, Colours::red);
-    addAndMakeVisible (footswitchModule.get());
 }
 
+// Destructor is defined later, after PluginListBoxModel is complete.
 GraphEditorPanel::~GraphEditorPanel()
 {
     graph.removeChangeListener (this);
     draggingConnector = nullptr;
     nodes.clear();
     connectors.clear();
-}
-
-// Zusätzliche Implementierungen für GraphDocumentComponent (Linker-Fehler beheben)
-GraphDocumentComponent::~GraphDocumentComponent()
-{
-    deviceManager.removeChangeListener (this);
-
-    if (graphPanel)
-        deviceManager.removeChangeListener (graphPanel.get());
-
-    deviceManager.removeAudioCallback (&graphPlayer);
-
-    graphPlayer.setProcessor (nullptr);
-
-    if (graph)
-        graph->closeAnyOpenPluginWindows();
-
-    graph.reset();
-
-    pluginListBoxModel.reset();
-    statusBar.reset();
-    graphPanel.reset();
 }
 
 void GraphEditorPanel::paint (Graphics& g)
@@ -1257,35 +981,15 @@ void GraphEditorPanel::resized()
     addPluginButton.setBounds (topLeft.removeFromLeft (buttonWidth).reduced (padding));
     deleteButton.setBounds (topLeft.removeFromLeft (buttonWidth).reduced (padding));
 
-    const int moduleWidth = 180;
-    const int moduleHeight = 110;
-    const int modulePadding = 12;
-    const int moduleX = padding;
-    const int moduleStartY = buttonHeight + (padding * 3);
-
-    if (potentiometerModule != nullptr)
-        potentiometerModule->setBounds (moduleX, moduleStartY, moduleWidth, moduleHeight);
-
-    if (footswitchModule != nullptr)
-        footswitchModule->setBounds (moduleX, moduleStartY + moduleHeight + modulePadding, moduleWidth, moduleHeight);
-
-    // Reset bounds to full height for sidepanel (buttons are now on the left, so panel can go all the way up)
+    // Reset bounds to full height for sidepanel
     bounds = getLocalBounds();
 
-    // Position the sidepanel if visible - NOW IT GOES ALL THE WAY TO THE TOP
     if (pluginEditorPanel != nullptr)
     {
         int panelWidth = pluginEditorPanel->getWidth();
-
-        // Position panel on the right side, FULL HEIGHT
         pluginEditorPanel->setBounds (bounds.removeFromRight (panelWidth));
     }
 
-    updateComponents();
-}
-
-void GraphEditorPanel::changeListenerCallback (ChangeBroadcaster*)
-{
     updateComponents();
 }
 
@@ -1295,8 +999,7 @@ void GraphEditorPanel::updateComponents()
         if (graph.graph.getNodeForId (nodes.getUnchecked (i)->pluginID) == nullptr)
             nodes.remove (i);
 
-    // Close sidepanel if the node was deleted
-    if (pluginEditorPanel != nullptr && 
+    if (pluginEditorPanel != nullptr &&
         graph.graph.getNodeForId (currentlyShowingNodeID) == nullptr)
     {
         closePluginEditorSidePanel();
@@ -1333,6 +1036,93 @@ void GraphEditorPanel::updateComponents()
             comp->setOutput (c.destination);
         }
     }
+
+    addPluginButton.toFront (false);
+    deleteButton.toFront (false);
+
+    if (pluginEditorPanel != nullptr)
+        pluginEditorPanel->toFront (false);
+}
+
+void GraphEditorPanel::dragConnector (const MouseEvent& e)
+{
+    auto e2 = e.getEventRelativeTo (this);
+
+    if (draggingConnector != nullptr)
+    {
+        draggingConnector->setTooltip ({});
+
+        auto pos = e2.position;
+
+        if (auto* pin = findPinAt (pos))
+        {
+            draggingConnector->setLineColour (false);
+            auto connection = draggingConnector->connection;
+
+            if (connection.source.nodeID == AudioProcessorGraph::NodeID() && ! pin->isInput)
+            {
+                connection.source = pin->pin;
+                draggingConnector->setInput (connection.source);
+                draggingConnector->setTooltip (pin->getTooltip());
+            }
+            else if (connection.destination.nodeID == AudioProcessorGraph::NodeID() && pin->isInput)
+            {
+                connection.destination = pin->pin;
+                draggingConnector->setOutput (connection.destination);
+                draggingConnector->setTooltip (pin->getTooltip());
+            }
+        }
+
+        if (draggingConnector->connection.source.nodeID == AudioProcessorGraph::NodeID())
+            draggingConnector->dragStart (pos);
+        else
+            draggingConnector->dragEnd (pos);
+    }
+}
+
+void GraphEditorPanel::showPluginEditorInSidePanel (AudioProcessorGraph::NodeID nodeID)
+{
+    // If clicking on the same plugin that's already open, CLOSE IT (toggle behavior)
+    if (currentlyShowingNodeID == nodeID && pluginEditorPanel != nullptr)
+    {
+        closePluginEditorSidePanel();
+        return;
+    }
+    
+    auto oldNodeID = currentlyShowingNodeID;
+
+    if (pluginEditorPanel != nullptr && currentlyShowingNodeID != nodeID)
+        closePluginEditorSidePanel();
+
+    currentlyShowingNodeID = nodeID;
+    pluginEditorPanel.reset (new PluginEditorSidePanel (*this, nodeID));
+    addAndMakeVisible (pluginEditorPanel.get());
+
+    if (auto* oldComp = getComponentForPlugin (oldNodeID))
+        oldComp->repaint();
+
+    if (auto* newComp = getComponentForPlugin (nodeID))
+        newComp->repaint();
+
+    resized();
+}
+
+void GraphEditorPanel::closePluginEditorSidePanel()
+{
+    auto oldNodeID = currentlyShowingNodeID;
+
+    pluginEditorPanel = nullptr;
+    currentlyShowingNodeID = AudioProcessorGraph::NodeID();
+
+    if (auto* comp = getComponentForPlugin (oldNodeID))
+        comp->repaint();
+
+    resized();
+}
+
+void GraphEditorPanel::changeListenerCallback (ChangeBroadcaster*)
+{
+    updateComponents();
 }
 
 void GraphEditorPanel::showPopupMenu (Point<int> mousePos)
@@ -1373,43 +1163,6 @@ void GraphEditorPanel::beginConnectorDrag (AudioProcessorGraph::NodeAndChannel s
     dragConnector (e);
 }
 
-void GraphEditorPanel::dragConnector (const MouseEvent& e)
-{
-    auto e2 = e.getEventRelativeTo (this);
-
-    if (draggingConnector != nullptr)
-    {
-        draggingConnector->setTooltip ({});
-
-        auto pos = e2.position;
-
-        if (auto* pin = findPinAt (pos))
-        {
-            auto connection = draggingConnector->connection;
-
-            if (connection.source.nodeID == AudioProcessorGraph::NodeID() && ! pin->isInput)
-            {
-                connection.source = pin->pin;
-            }
-            else if (connection.destination.nodeID == AudioProcessorGraph::NodeID() && pin->isInput)
-            {
-                connection.destination = pin->pin;
-            }
-
-            if (graph.graph.canConnect (connection))
-            {
-                pos = (pin->getParentComponent()->getPosition() + pin->getBounds().getCentre()).toFloat();
-                draggingConnector->setTooltip (pin->getTooltip());
-            }
-        }
-
-        if (draggingConnector->connection.source.nodeID == AudioProcessorGraph::NodeID())
-            draggingConnector->dragStart (pos);
-        else
-            draggingConnector->dragEnd (pos);
-    }
-}
-
 void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
 {
     if (draggingConnector == nullptr)
@@ -1446,56 +1199,8 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
 void GraphEditorPanel::timerCallback()
 {
     stopTimer();
-    // Removed: No longer showing popup menu on timer
 }
 
-void GraphEditorPanel::showPluginEditorInSidePanel (AudioProcessorGraph::NodeID nodeID)
-{
-    // If clicking on the same plugin that's already open, CLOSE IT (toggle behavior)
-    if (currentlyShowingNodeID == nodeID && pluginEditorPanel != nullptr)
-    {
-        closePluginEditorSidePanel();
-        return;
-    }
-    
-    // Store old nodeID to repaint that component
-    auto oldNodeID = currentlyShowingNodeID;
-    
-    // Close existing panel if different plugin
-    if (pluginEditorPanel != nullptr && currentlyShowingNodeID != nodeID)
-        closePluginEditorSidePanel();
-    
-    // Create new panel for this plugin
-    currentlyShowingNodeID = nodeID;
-    pluginEditorPanel.reset (new PluginEditorSidePanel (*this, nodeID));
-    addAndMakeVisible (pluginEditorPanel.get());
-    
-    // Repaint both the old and new plugin components to update borders
-    if (auto* oldComp = getComponentForPlugin (oldNodeID))
-        oldComp->repaint();
-    
-    if (auto* newComp = getComponentForPlugin (nodeID))
-        newComp->repaint();
-    
-    resized();
-}
-
-void GraphEditorPanel::closePluginEditorSidePanel()
-{
-    auto oldNodeID = currentlyShowingNodeID;
-    
-    pluginEditorPanel = nullptr;
-    currentlyShowingNodeID = AudioProcessorGraph::NodeID();
-    
-    // Repaint the plugin component to remove border highlight
-    if (auto* comp = getComponentForPlugin (oldNodeID))
-        comp->repaint();
-    
-    resized();
-}
-
-//==============================================================================
-// NEW: Floating Plugin Menu Methods
 void GraphEditorPanel::showPluginMenu()
 {
     if (floatingMenu != nullptr)
@@ -1503,31 +1208,22 @@ void GraphEditorPanel::showPluginMenu()
         hidePluginMenu();
         return;
     }
-    
-    // Get ONLY our custom Fx effects (exclude Audio Input/Output)
+
     Array<PluginDescriptionAndPreference> availablePlugins;
-    
+
     if (auto* mainWindow = findParentComponentOfClass<MainHostWindow>())
     {
-        // Only add internal Fx plugins, exclude Audio Input and Audio Output
         auto& internalTypes = mainWindow->internalTypes;
         for (const auto& desc : internalTypes)
-        {
-            // Exclude Audio Input and Audio Output
             if (desc.name != "Audio Input" && desc.name != "Audio Output")
-            {
                 availablePlugins.add (PluginDescriptionAndPreference { desc });
-            }
-        }
     }
-    
+
     if (availablePlugins.isEmpty())
         return;
-    
+
     floatingMenu.reset (new FloatingPluginMenu (*this, availablePlugins));
     addAndMakeVisible (floatingMenu.get());
-    
-    // Center the menu
     floatingMenu->setCentrePosition (getWidth() / 2, getHeight() / 2);
 }
 
@@ -1536,22 +1232,15 @@ void GraphEditorPanel::hidePluginMenu()
     floatingMenu = nullptr;
 }
 
-//==============================================================================
-// NEW: Delete Mode Methods
 void GraphEditorPanel::toggleDeleteMode()
 {
     deleteMode = !deleteMode;
-    
-    // Update button color
+
     if (deleteMode)
-    {
         deleteButton.setColour (TextButton::buttonColourId, Colours::red);
-    }
     else
-    {
         deleteButton.setColour (TextButton::buttonColourId, Colours::grey);
-    }
-    
+
     repaint();
 }
 
@@ -1566,10 +1255,8 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
 
     void paint (Graphics& g) override
     {
-        // Larger font for 800x480 touchscreen
         g.setFont (FontOptions ((float) getHeight() * 0.75f, Font::bold));
         g.setColour (Colours::black);
-        // More padding for better readability
         g.drawFittedText (tip, 12, 0, getWidth() - 16, getHeight(), Justification::centredLeft, 1);
     }
 
@@ -1594,7 +1281,6 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TooltipBar)
 };
 
-//==============================================================================
 class GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
                                                           public ChangeListener,
                                                           public MouseListener
@@ -1626,7 +1312,6 @@ public:
         g.setColour (rowIsSelected ? Colours::black : Colours::white);
 
         if (rowNumber < knownPlugins.getNumTypes())
-            // Add padding for better readability
             g.drawFittedText (knownPlugins.getTypes()[rowNumber].name, { 8, 0, width - 16, height - 2 }, Justification::centred, 1);
 
         g.setColour (Colours::black.withAlpha (0.4f));
@@ -1664,6 +1349,25 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE (PluginListBoxModel)
 };
+
+GraphDocumentComponent::~GraphDocumentComponent()
+{
+    deviceManager.removeChangeListener (this);
+
+    if (graphPanel)
+        deviceManager.removeChangeListener (graphPanel.get());
+
+    deviceManager.removeAudioCallback (&graphPlayer);
+    graphPlayer.setProcessor (nullptr);
+
+    if (graph)
+        graph->closeAnyOpenPluginWindows();
+
+    graph.reset();
+    pluginListBoxModel.reset();
+    statusBar.reset();
+    graphPanel.reset();
+}
 
 GraphDocumentComponent::GraphDocumentComponent (AudioPluginFormatManager& fm,
                                                 AudioDeviceManager& dm,
@@ -1718,7 +1422,6 @@ void GraphDocumentComponent::resized()
         return bounds;
     }();
 
-    // Fixed sizes for 800x480 touchscreen - no title bar
     const int statusHeight = 26;
 
     statusBar->setBounds (r.removeFromBottom (statusHeight));
@@ -1731,7 +1434,6 @@ void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster* source)
 {
     if (source == &deviceManager)
     {
-        // Device manager changed
     }
     else if (graphPanel)
     {
