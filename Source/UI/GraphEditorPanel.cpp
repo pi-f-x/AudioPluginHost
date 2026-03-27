@@ -878,7 +878,7 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
     addAndMakeVisible (addPluginButton);
     
     // Setup Delete Button (???)
-    deleteButton.setButtonText ("DELETE");
+    deleteButton.setButtonText ("-");
     deleteButton.setColour (TextButton::buttonColourId, Colours::grey);
     deleteButton.setColour (TextButton::textColourOffId, Colours::white);
     deleteButton.onClick = [this]() { toggleDeleteMode(); };

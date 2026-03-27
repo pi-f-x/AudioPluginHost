@@ -275,6 +275,9 @@ public:
             bypassToggle.addListener(this);
             addAndMakeVisible(bypassToggle);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             if (blendParameter) blendSlider.setValue(*blendParameter, dontSendNotification);
             if (up2Parameter) up2Button.setToggleState(static_cast<bool>(*up2Parameter), dontSendNotification);
             if (up1Parameter) up1Button.setToggleState(static_cast<bool>(*up1Parameter), dontSendNotification);
@@ -365,6 +368,13 @@ public:
             int footY = getHeight() - 54;
             int btnSize = 48;
             bypassToggle.setBounds(centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  footY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -434,6 +444,8 @@ public:
         TextButton down1Button;
         TextButton down2Button;
         ToggleButton bypassToggle;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         // small LED indicators implemented as Labels (background colour)
         Label ledUp2, ledUp1, ledDown1, ledDown2;

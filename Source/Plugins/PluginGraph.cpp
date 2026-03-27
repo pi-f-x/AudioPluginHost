@@ -245,9 +245,9 @@ void PluginGraph::newDocument()
 
     jassert (internalFormat.getAllTypes().size() > 2);
 
-	// Audio Input at top, Audio Output higher up to avoid overlap with footswitches
+    // Audio Input at top, Audio Output at bottom edge
     addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[0] }, { 0.5,  0.1 });
-    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.6 });  // Moved from 0.9 to 0.6
+    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.9 });
 
     MessageManager::callAsync ([this]
     {

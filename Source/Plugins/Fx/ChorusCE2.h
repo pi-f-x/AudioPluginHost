@@ -285,6 +285,9 @@ public:
             bypassButton.setColour(ToggleButton::tickColourId, Colours::transparentBlack);
             addAndMakeVisible(bypassButton);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             startTimerHz(30); // parameter polling for UI sync
         }
 
@@ -381,6 +384,13 @@ public:
             int centreY = static_cast<int>(footCentreCached.y);
             int btnSize = 56;
             bypassButton.setBounds(centreX - btnSize / 2, centreY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  centreY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -466,6 +476,8 @@ public:
         Label chorusLabel;
 
         ToggleButton bypassButton;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         FxCommon::PedalLookAndFeel pedalLaf;
 

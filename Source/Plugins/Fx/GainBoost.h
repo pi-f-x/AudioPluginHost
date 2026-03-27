@@ -193,6 +193,9 @@ public:
             bypassButton.setColour (ToggleButton::tickColourId, Colours::transparentBlack);
             addAndMakeVisible (bypassButton);
 
+            addAndMakeVisible (hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI (*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             startTimerHz (30);
             setWantsKeyboardFocus (false);
         }
@@ -266,13 +269,20 @@ public:
 
             gainSlider.setBounds (xKnob, yKnob, knobSize, knobSize);
             
-            gainLabel.setBounds (gainSlider.getX(), topBar.getY() + 5, 
+            gainLabel.setBounds (gainSlider.getX(), topBar.getY() + 5,
                                 gainSlider.getWidth(), 18);
 
             int centreX = getWidth() / 2;
             int footY = getHeight() - 50;
             int btnSize = 48;
             bypassButton.setBounds (centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton (hardwareMappingButton,
+                                                   getWidth(),
+                                                   centreX,
+                                                   footY,
+                                                   btnSize);
+            FxCommon::layoutHardwareMappingPopup (*this, hardwareMappingPopup);
         }
 
     private:
@@ -312,6 +322,8 @@ public:
         Slider gainSlider;
         Label gainLabel;
         ToggleButton bypassButton;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         FxCommon::PedalLookAndFeel pedalLaf;
 

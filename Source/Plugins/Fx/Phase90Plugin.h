@@ -228,6 +228,9 @@ public:
             bypassButton.setColour(juce::ToggleButton::tickColourId, juce::Colours::transparentBlack);
             addAndMakeVisible(bypassButton);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             // Start polling timer (same approach as GainProcessor)
             startTimerHz(30);
             setWantsKeyboardFocus(false);
@@ -293,6 +296,13 @@ public:
             int footY = getHeight() - 72;
             int btnSize = 56;
             bypassButton.setBounds(centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  footY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -338,6 +348,8 @@ public:
         juce::Slider rateSlider;
         juce::Label speedLabel;
         juce::ToggleButton bypassButton;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         // Use shared pedal look-and-feel from FxCommon
         FxCommon::PedalLookAndFeel laf;

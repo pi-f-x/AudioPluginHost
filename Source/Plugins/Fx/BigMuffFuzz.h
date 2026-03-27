@@ -291,6 +291,9 @@ public:
             bypassButton.setColour(ToggleButton::tickColourId, Colours::transparentBlack);
             addAndMakeVisible(bypassButton);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             startTimerHz(30);
             setWantsKeyboardFocus(false);
         }
@@ -375,6 +378,13 @@ public:
             int footY = getHeight() - 64;
             int btnSize = 56;
             bypassButton.setBounds(centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  footY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -445,6 +455,8 @@ public:
         Label volumeLabel;
 
         ToggleButton bypassButton;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         // Inversion flags because artwork/knob orientation is mirrored vertically:
         // physical 7h -> logical 0, 5h -> logical 1

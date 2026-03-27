@@ -279,6 +279,9 @@ public:
             bypassButton.setColour(ToggleButton::tickColourId, Colours::transparentBlack);
             addAndMakeVisible(bypassButton);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             // Override knob colours to black knobs with white accents (original look)
             pedalLaf.setColour(juce::Slider::rotarySliderFillColourId, Colours::black);
             pedalLaf.setColour(juce::Slider::rotarySliderOutlineColourId, Colours::white);
@@ -386,6 +389,13 @@ public:
             // bypass clickable area (centered on footswitch)
             int footY = getHeight() - 44;
             bypassButton.setBounds(centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  footY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -448,6 +458,8 @@ public:
         Label analogLabel;
 
         ToggleButton bypassButton;
+        juce::TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
         FxCommon::PedalLookAndFeel pedalLaf;
 

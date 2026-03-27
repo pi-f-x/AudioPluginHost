@@ -282,6 +282,9 @@ public:
             bypassButton.setColour(ToggleButton::tickColourId, Colours::transparentBlack);
             addAndMakeVisible(bypassButton);
 
+            addAndMakeVisible(hardwareMappingButton);
+            FxCommon::initialiseHardwareMappingUI(*this, hardwareMappingButton, hardwareMappingPopup, &processor);
+
             // Ensure UI reflects parameter changes
             startTimerHz(30);
 
@@ -383,6 +386,13 @@ public:
             int footY = getHeight() - 54;
             int btnSize = 48;
             bypassButton.setBounds(centreX - btnSize / 2, footY - btnSize / 2, btnSize, btnSize);
+
+            FxCommon::layoutHardwareMappingButton(hardwareMappingButton,
+                                                  getWidth(),
+                                                  centreX,
+                                                  footY,
+                                                  btnSize);
+            FxCommon::layoutHardwareMappingPopup(*this, hardwareMappingPopup);
         }
 
     private:
@@ -457,9 +467,11 @@ public:
         Label filtLabel;
         Label volLabel;
 
-        ToggleButton bypassButton; // invisible clickable area for footswitch
+        ToggleButton bypassButton;
+        TextButton hardwareMappingButton;
+        FxCommon::HardwareMappingPopup hardwareMappingPopup;
 
-        // Flags: welche Drehregler manuell invertiert werden
+        // Manual inversion flags for selected knobs
         bool invertDistortion = false;
         bool invertVolume = false;
 
