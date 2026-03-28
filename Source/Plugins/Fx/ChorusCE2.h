@@ -398,10 +398,12 @@ public:
         {
             if (rateParameter && depthParameter && bypassParameter)
             {
-                // update sliders from parameters
-                const float pRate = *rateParameter;
-                const float pDepth = *depthParameter;
+                const float pRate = FxCommon::getDisplayValueForParameter(&processor, rateParameter);
+                const float pDepth = FxCommon::getDisplayValueForParameter(&processor, depthParameter);
                 const bool pBypass = static_cast<bool>(*bypassParameter);
+
+                rateSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, rateParameter));
+                depthSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, depthParameter));
 
                 if (std::abs((float)rateSlider.getValue() - normalizedFromRate(pRate)) > 0.001f)
                     rateSlider.setValue(normalizedFromRate(pRate), dontSendNotification);
@@ -421,16 +423,16 @@ public:
 
             if (s == &rateSlider && rateParameter)
             {
-                // slider stores a custom normalized value (0..1), we first map that to logical Hz
+                if (!FxCommon::isManualControlAllowed(&processor, rateParameter))
+                    return;
                 const float logicalRate = rateFromNormalized(static_cast<float>(rateSlider.getValue()));
-                // AudioParameter::setValueNotifyingHost expects a normalized 0..1 value in the parameter's range,
-                // so convert the real Hz value into the parameter's normalized space.
                 const float paramNormalized = static_cast<float>(rateParameter->getNormalisableRange().convertTo0to1(logicalRate));
                 rateParameter->setValueNotifyingHost(paramNormalized);
             }
             else if (s == &depthSlider && depthParameter)
             {
-                // depth is linear 0..1 so we can pass slider value directly (already normalized)
+                if (!FxCommon::isManualControlAllowed(&processor, depthParameter))
+                    return;
                 const float d = static_cast<float>(depthSlider.getValue());
                 const float paramNormalized = static_cast<float>(depthParameter->getNormalisableRange().convertTo0to1(d));
                 depthParameter->setValueNotifyingHost(paramNormalized);

@@ -393,12 +393,15 @@ public:
         {
             if (sustainParameter && toneParameter && volumeParameter && bypassParameter)
             {
-                const float pSustain = *sustainParameter;
-                const float pTone = *toneParameter;
-                const float pVolume = *volumeParameter;
+                const float pSustain = FxCommon::getDisplayValueForParameter(&processor, sustainParameter);
+                const float pTone = FxCommon::getDisplayValueForParameter(&processor, toneParameter);
+                const float pVolume = FxCommon::getDisplayValueForParameter(&processor, volumeParameter);
                 const bool pBypass = static_cast<bool>(*bypassParameter);
 
-                // display inverted if needed
+                sustainSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, sustainParameter));
+                toneSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, toneParameter));
+                volumeSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, volumeParameter));
+
                 const float displaySustain = invertSustain ? (1.0f - pSustain) : pSustain;
                 const float displayTone = invertTone ? (1.0f - pTone) : pTone;
                 const float displayVolume = invertVolume ? (1.0f - pVolume) : pVolume;
@@ -424,16 +427,22 @@ public:
 
             if (s == &sustainSlider && sustainParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, sustainParameter))
+                    return;
                 const float sliderVal = static_cast<float>(sustainSlider.getValue());
                 sustainParameter->setValueNotifyingHost(invertSustain ? (1.0f - sliderVal) : sliderVal);
             }
             else if (s == &toneSlider && toneParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, toneParameter))
+                    return;
                 const float sliderVal = static_cast<float>(toneSlider.getValue());
                 toneParameter->setValueNotifyingHost(invertTone ? (1.0f - sliderVal) : sliderVal);
             }
             else if (s == &volumeSlider && volumeParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, volumeParameter))
+                    return;
                 const float sliderVal = static_cast<float>(volumeSlider.getValue());
                 volumeParameter->setValueNotifyingHost(invertVolume ? (1.0f - sliderVal) : sliderVal);
             }

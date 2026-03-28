@@ -403,10 +403,14 @@ public:
         {
             if (delayParameter && mixParameter && regenParameter && bypassParameter)
             {
-                const float pDelay = *delayParameter;
-                const float pMix = *mixParameter;
-                const float pRegen = *regenParameter;
+                const float pDelay = FxCommon::getDisplayValueForParameter(&processor, delayParameter);
+                const float pMix = FxCommon::getDisplayValueForParameter(&processor, mixParameter);
+                const float pRegen = FxCommon::getDisplayValueForParameter(&processor, regenParameter);
                 const bool pBypass = static_cast<bool>(*bypassParameter);
+
+                delaySlider.setEnabled(FxCommon::isManualControlAllowed(&processor, delayParameter));
+                mixSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, mixParameter));
+                regenSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, regenParameter));
 
                 if (std::abs((float)delaySlider.getValue() - pDelay) > 0.001f)
                     delaySlider.setValue(pDelay, dontSendNotification);
@@ -428,14 +432,20 @@ public:
 
             if (s == &delaySlider && delayParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, delayParameter))
+                    return;
                 delayParameter->setValueNotifyingHost(static_cast<float>(delaySlider.getValue()));
             }
             else if (s == &mixSlider && mixParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, mixParameter))
+                    return;
                 mixParameter->setValueNotifyingHost(static_cast<float>(mixSlider.getValue()));
             }
             else if (s == &regenSlider && regenParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, regenParameter))
+                    return;
                 regenParameter->setValueNotifyingHost(static_cast<float>(regenSlider.getValue()));
             }
         }

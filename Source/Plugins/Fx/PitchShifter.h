@@ -382,7 +382,10 @@ public:
         {
             if (!blendParameter) return;
 
-            const float pBlend = *blendParameter;
+            const float pBlend = FxCommon::getDisplayValueForParameter(&processor, blendParameter);
+
+            blendSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, blendParameter));
+
             if (std::abs((float)blendSlider.getValue() - pBlend) > 0.001f)
                 blendSlider.setValue(pBlend, dontSendNotification);
 
@@ -410,7 +413,11 @@ public:
         void sliderValueChanged(Slider* s) override
         {
             if (s == &blendSlider && blendParameter)
+            {
+                if (!FxCommon::isManualControlAllowed(&processor, blendParameter))
+                    return;
                 blendParameter->setValueNotifyingHost(static_cast<float>(blendSlider.getValue()));
+            }
         }
 
         void buttonClicked(Button* b) override

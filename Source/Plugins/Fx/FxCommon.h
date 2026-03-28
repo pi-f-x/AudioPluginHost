@@ -13,6 +13,7 @@
 #include <JuceHeader.h>
 #include <unordered_map>
 #include <mutex>
+#include <optional>
 
 namespace FxCommon
 {
@@ -307,7 +308,8 @@ namespace FxCommon
         button.setBounds(mappingX, footswitchCenterY - mappingH / 2, mappingW, mappingH);
     }
 
-    class HardwareMappingPopup final : public juce::Component
+    class HardwareMappingPopup final : public juce::Component,
+                                    private juce::Timer
     {
     public:
         HardwareMappingPopup()
@@ -315,7 +317,116 @@ namespace FxCommon
             addAndMakeVisible(closeButton);
             closeButton.setButtonText("X");
             closeButton.onClick = [this]() { close(); };
+
+            addAndMakeVisible(backButton);
+            backButton.setButtonText("Back");
+            backButton.onClick = [this]()
+            {
+                if (currentView == View::lfoDetail)
+                    showLfoGridView();
+                else if (currentView == View::lfoGrid)
+                    showMappingView();
+            };
+
+            addAndMakeVisible(mappingView);
+            addAndMakeVisible(lfoGridView);
+            addAndMakeVisible(lfoDetailView);
+
+            lfoGridView.addAndMakeVisible(newLfoButton);
+            newLfoButton.setButtonText("NEW");
+            newLfoButton.onClick = [this]()
+            {
+                SessionModulationModel::instance().addDefaultLfo();
+                lfoDeleteMode = false;
+                rebuildLfoGrid();
+                resized();
+                repaint();
+            };
+
+            lfoGridView.addAndMakeVisible(deleteLfoButton);
+            deleteLfoButton.setButtonText("DELETE");
+            deleteLfoButton.onClick = [this]()
+            {
+                lfoDeleteMode = !lfoDeleteMode;
+                deleteLfoButton.setColour(juce::TextButton::buttonColourId,
+                                      lfoDeleteMode ? juce::Colours::red : juce::Colours::darkgrey);
+                repaint();
+            };
+            deleteLfoButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+
+            lfoDetailView.addAndMakeVisible(waveformCombo);
+            waveformCombo.addItem("Sine", 1);
+            waveformCombo.addItem("Triangle", 2);
+            waveformCombo.addItem("Square", 3);
+            waveformCombo.addItem("Saw", 4);
+            waveformCombo.addItem("Random", 5);
+            waveformCombo.onChange = [this]()
+            {
+                if (isUpdatingDetailControls)
+                    return;
+
+                if (auto lfo = getSelectedLfo())
+                {
+                    lfo->waveform = waveformFromId(waveformCombo.getSelectedId());
+                    setSelectedLfo(*lfo);
+                }
+
+                waveformPreview.repaint();
+                rebuildLfoGrid();
+            };
+
+            lfoDetailView.addAndMakeVisible(waveformPreview);
+
+            setupKnob(freqKnob, "FREQ", freqValueLabel);
+            setupKnob(depthKnob, "DEPTH", depthValueLabel);
+            setupKnob(offsetKnob, "OFFSET", offsetValueLabel);
+
+            freqKnob.setRange(0.0, 1.0, 0.0001);
+            depthKnob.setRange(0.0, 100.0, 0.1);
+            offsetKnob.setRange(0.0, 100.0, 0.1);
+
+            freqKnob.onValueChange = [this]()
+            {
+                if (isUpdatingDetailControls)
+                    return;
+                if (auto lfo = getSelectedLfo())
+                {
+                    lfo->frequencyHz = frequencyFromKnob((float) freqKnob.getValue());
+                    setSelectedLfo(*lfo);
+                }
+                updateDetailValueLabels();
+                rebuildLfoGrid();
+            };
+
+            depthKnob.onValueChange = [this]()
+            {
+                if (isUpdatingDetailControls)
+                    return;
+                if (auto lfo = getSelectedLfo())
+                {
+                    lfo->depthPercent = (float) depthKnob.getValue();
+                    setSelectedLfo(*lfo);
+                }
+                updateDetailValueLabels();
+                rebuildLfoGrid();
+            };
+
+            offsetKnob.onValueChange = [this]()
+            {
+                if (isUpdatingDetailControls)
+                    return;
+                if (auto lfo = getSelectedLfo())
+                {
+                    lfo->offsetPercent = (float) offsetKnob.getValue();
+                    setSelectedLfo(*lfo);
+                }
+                updateDetailValueLabels();
+                rebuildLfoGrid();
+            };
+
             setInterceptsMouseClicks(true, true);
+            startTimerHz(30);
+            showMappingView();
         }
 
         void setParameters(const juce::String& nodeIdIn, juce::AudioProcessor* processor)
@@ -336,7 +447,6 @@ namespace FxCommon
                 juce::String parameterId;
                 if (auto* withId = dynamic_cast<juce::AudioProcessorParameterWithID*>(p))
                     parameterId = withId->paramID;
-
                 if (parameterId.isEmpty())
                     parameterId = p->getName(64).replaceCharacters(" ", "_").toLowerCase();
 
@@ -344,14 +454,13 @@ namespace FxCommon
                 label->setText(p->getName(64), juce::dontSendNotification);
                 label->setColour(juce::Label::textColourId, juce::Colours::white);
                 label->setJustificationType(juce::Justification::centredLeft);
-                addAndMakeVisible(label);
+                mappingView.addAndMakeVisible(label);
 
-                auto* combo = mappingBoxes.add(new juce::ComboBox());
+                auto* combo = mappingBoxes.add(new MappingComboBox());
                 combo->addItem("None", 1);
 
                 const auto lowerName = p->getName(64).trim().toLowerCase();
                 const bool isBypass = (lowerName == "bypass");
-
                 if (isBypass)
                 {
                     combo->addItem("Footswitch1", 2);
@@ -368,16 +477,36 @@ namespace FxCommon
                 const auto saved = getDropdownValueForParameter(nodeId, parameterId);
                 combo->setText(saved.isNotEmpty() ? saved : "None", juce::dontSendNotification);
 
-                const int index = parameterIds.size();
+                const int index = (int) parameterIds.size();
                 parameterIds.push_back(parameterId);
-                combo->onChange = [this, index, combo]()
+
+                combo->onOpenLfoWindow = [this, index]()
                 {
-                    if (index < 0 || index >= parameterIds.size())
-                        return;
-                    setAssignmentFromDropdown(nodeId, parameterIds[(size_t)index], combo->getText(), 0);
+                    activeMappingParameterIndex = index;
+                    showLfoGridView();
                 };
 
-                addAndMakeVisible(combo);
+                combo->onChange = [this, index, combo]()
+                {
+                    if (index < 0 || index >= (int) parameterIds.size())
+                        return;
+
+                    combo->lfoReopenArmed = false;
+
+                    const bool isLfo = combo->getText() == "LFO";
+                    if (isLfo)
+                        activeMappingParameterIndex = index;
+
+                    setAssignmentFromDropdown(nodeId,
+                              parameterIds[(size_t) index],
+                              combo->getText(),
+                              juce::jmax(0, selectedLfoIndex));
+
+                    if (isLfo)
+                        showLfoGridView();
+                };
+
+                mappingView.addAndMakeVisible(combo);
             }
 
             resized();
@@ -388,12 +517,14 @@ namespace FxCommon
             setVisible(true);
             setAlwaysOnTop(true);
             toFront(true);
+            showMappingView();
         }
 
         void close()
         {
             setVisible(false);
             setAlwaysOnTop(false);
+            showMappingView();
         }
 
         void paint(juce::Graphics& g) override
@@ -409,16 +540,445 @@ namespace FxCommon
 
             g.setColour(juce::Colours::white);
             g.setFont(juce::Font(18.0f, juce::Font::bold));
-            g.drawText("Hardware Mapping", getLocalBounds().removeFromTop(44), juce::Justification::centred);
+            g.drawText(getTitleText(), getLocalBounds().removeFromTop(44), juce::Justification::centred);
+
+            if (currentView == View::lfoGrid && lfoDeleteMode)
+            {
+                g.setColour(juce::Colours::red.withAlpha(0.75f));
+                g.setFont(juce::Font(14.0f, juce::Font::bold));
+                g.drawText("DELETE MODE - Click LFO", getLocalBounds().removeFromTop(70), juce::Justification::centred);
+            }
         }
 
         void resized() override
         {
             closeButton.setBounds(getWidth() - 36, 8, 28, 24);
+            backButton.setBounds(getWidth() - 96, 8, 56, 24);
 
             auto content = getLocalBounds().reduced(32);
             content.removeFromTop(36);
 
+            mappingView.setBounds(content);
+            lfoGridView.setBounds(content);
+            lfoDetailView.setBounds(content);
+
+            layoutMappingView();
+            layoutLfoGridView();
+            layoutLfoDetailView();
+        }
+
+    private:
+        enum class View { mapping, lfoGrid, lfoDetail };
+
+        struct MappingComboBox final : public juce::ComboBox
+        {
+            std::function<void()> onOpenLfoWindow;
+            bool lfoReopenArmed = false;
+
+            void mouseDown(const juce::MouseEvent& e) override
+            {
+                if (getText() == "LFO")
+                {
+                    if (lfoReopenArmed && onOpenLfoWindow)
+                    {
+                        lfoReopenArmed = false;
+                        onOpenLfoWindow();
+                        return;
+                    }
+
+                    lfoReopenArmed = true;
+                    juce::ComboBox::mouseDown(e);
+                    return;
+                }
+
+                lfoReopenArmed = false;
+                juce::ComboBox::mouseDown(e);
+            }
+        };
+
+        struct LfoCard final : public juce::Component
+        {
+            LfoCard(std::function<void(bool)> onToggleAssignmentFn,
+                    std::function<void()> onOpenDetailFn)
+                : onToggleAssignment(std::move(onToggleAssignmentFn)),
+                  onOpenDetail(std::move(onOpenDetailFn))
+            {
+                addAndMakeVisible(assignToggle);
+                assignToggle.setClickingTogglesState(true);
+                assignToggle.setButtonText({});
+                assignToggle.setColour(juce::ToggleButton::textColourId, juce::Colours::transparentBlack);
+                assignToggle.onClick = [this]()
+                {
+                    if (onToggleAssignment)
+                        onToggleAssignment(assignToggle.getToggleState());
+                };
+            }
+
+            void setData(int i, const LfoDefinition& d, bool assignedForActiveParameter)
+            {
+                index = i;
+                lfo = d;
+                assignToggle.setToggleState(assignedForActiveParameter, juce::dontSendNotification);
+                repaint();
+            }
+
+            void resized() override
+            {
+                assignToggle.setBounds(getWidth() - 34, 6, 28, 28);
+            }
+
+            void paint(juce::Graphics& g) override
+            {
+                auto r = getLocalBounds().toFloat();
+                g.setColour(juce::Colour::fromRGB(52, 52, 52));
+                g.fillRoundedRectangle(r, 8.0f);
+                g.setColour(juce::Colours::white.withAlpha(0.75f));
+                g.drawRoundedRectangle(r, 8.0f, 1.2f);
+
+                auto cb = juce::Rectangle<float>(assignToggle.getX(), assignToggle.getY(), assignToggle.getWidth(), assignToggle.getHeight()).toFloat();
+                g.setColour(juce::Colours::white.withAlpha(0.95f));
+                g.drawRoundedRectangle(cb.reduced(2.0f), 3.0f, 1.6f);
+                if (assignToggle.getToggleState())
+                {
+                    g.setColour(juce::Colours::limegreen);
+                    juce::Path tick;
+                    auto t = cb.reduced(6.0f);
+                    tick.startNewSubPath(t.getX(), t.getCentreY());
+                    tick.lineTo(t.getCentreX() - 1.0f, t.getBottom());
+                    tick.lineTo(t.getRight(), t.getY());
+                    g.strokePath(tick, juce::PathStrokeType(2.4f));
+                }
+
+                g.setColour(juce::Colours::white);
+                g.setFont(juce::Font(13.0f, juce::Font::bold));
+                g.drawText("LFO " + juce::String(index + 1), 8, 6, getWidth() - 46, 18, juce::Justification::centredLeft);
+
+                const auto preview = juce::Rectangle<float>(r.getX() + 12.0f, r.getCentreY() - 22.0f, r.getWidth() - 54.0f, 44.0f);
+                drawWaveform(g, preview, lfo, juce::Time::getMillisecondCounterHiRes() * 0.001);
+
+                g.setFont(juce::Font(12.0f));
+                g.drawText("Hz: " + juce::String(lfo.frequencyHz, 2), 8, getHeight() - 40, getWidth() / 3, 18, juce::Justification::centredLeft);
+                g.drawText("Depth: " + juce::String(lfo.depthPercent, 0) + "%", getWidth() / 3, getHeight() - 40, getWidth() / 3, 18, juce::Justification::centredLeft);
+                g.drawText("Offset: " + juce::String(lfo.offsetPercent, 0) + "%", (getWidth() * 2) / 3, getHeight() - 40, getWidth() / 3 - 8, 18, juce::Justification::centredLeft);
+            }
+
+            void mouseUp(const juce::MouseEvent& e) override
+            {
+                if (assignToggle.getBounds().contains(e.getPosition()))
+                    return;
+
+                if (onOpenDetail)
+                    onOpenDetail();
+            }
+
+            static float waveformValue(LfoDefinition::Waveform wf, float t)
+            {
+                switch (wf)
+                {
+                    case LfoDefinition::Waveform::sine: return std::sin(t * juce::MathConstants<float>::twoPi);
+                    case LfoDefinition::Waveform::triangle: return 1.0f - 4.0f * std::abs(t - 0.5f);
+                    case LfoDefinition::Waveform::square: return t < 0.5f ? 1.0f : -1.0f;
+                    case LfoDefinition::Waveform::saw: return (2.0f * t) - 1.0f;
+                    case LfoDefinition::Waveform::random:
+                    {
+                        const int step = juce::jlimit(0, 15, (int) (t * 16.0f));
+                        static constexpr float seq[16] = { 0.84f, -0.18f, 0.35f, -0.92f, 0.11f, 0.72f, -0.47f, 0.28f,
+                                                           -0.73f, 0.64f, -0.05f, 0.51f, -0.88f, 0.22f, -0.31f, 0.94f };
+                        return seq[step];
+                    }
+                }
+                return 0.0f;
+            }
+
+            static float modulationValue(const LfoDefinition& lfo, float t)
+            {
+                const float wrapped = t - std::floor(t);
+                const float base = waveformValue(lfo.waveform, wrapped);
+                const float depth = juce::jlimit(0.0f, 1.0f, lfo.depthPercent / 100.0f);
+                const float offset = juce::jlimit(-1.0f, 1.0f, (lfo.offsetPercent / 100.0f) * 2.0f - 1.0f);
+                return juce::jlimit(-1.0f, 1.0f, base * depth + offset);
+            }
+
+            static void drawWaveform(juce::Graphics& g, juce::Rectangle<float> r, const LfoDefinition& lfo, double time)
+            {
+                g.setColour(juce::Colours::black.withAlpha(0.45f));
+                g.fillRoundedRectangle(r, 6.0f);
+                g.setColour(juce::Colours::cyan.withAlpha(0.95f));
+
+                juce::Path p;
+                const int points = 96;
+                for (int i = 0; i < points; ++i)
+                {
+                    const float t = (float) i / (float) (points - 1);
+                    const float phase = (float) std::fmod(time * juce::jmax(0.01f, lfo.frequencyHz), 1.0);
+                    const float yNorm = modulationValue(lfo, t + phase);
+                    const float x = r.getX() + t * r.getWidth();
+                    const float y = r.getCentreY() - yNorm * (r.getHeight() * 0.42f);
+
+                    if (i == 0) p.startNewSubPath(x, y);
+                    else p.lineTo(x, y);
+                }
+                g.strokePath(p, juce::PathStrokeType(2.0f));
+            }
+
+            bool isAssigned = false;
+            int index = -1;
+            LfoDefinition lfo;
+            juce::ToggleButton assignToggle;
+            std::function<void(bool)> onToggleAssignment;
+            std::function<void()> onOpenDetail;
+        };
+
+        struct WaveformPreviewComponent final : public juce::Component
+        {
+            explicit WaveformPreviewComponent(HardwareMappingPopup& o) : owner(o) {}
+
+            void paint(juce::Graphics& g) override
+            {
+                auto r = getLocalBounds().toFloat().reduced(8.0f);
+                g.setColour(juce::Colours::black.withAlpha(0.4f));
+                g.fillRoundedRectangle(r, 7.0f);
+                if (auto lfo = owner.getSelectedLfo())
+                    LfoCard::drawWaveform(g, r.reduced(8.0f), *lfo, juce::Time::getMillisecondCounterHiRes() * 0.001);
+            }
+
+            HardwareMappingPopup& owner;
+        };
+
+        static float frequencyFromKnob(float norm)
+        {
+            constexpr float minHz = 0.01f;
+            constexpr float maxHz = 20.0f;
+            return minHz * std::pow(maxHz / minHz, juce::jlimit(0.0f, 1.0f, norm));
+        }
+
+        static float knobFromFrequency(float hz)
+        {
+            constexpr float minHz = 0.01f;
+            constexpr float maxHz = 20.0f;
+            const float clamped = juce::jlimit(minHz, maxHz, hz);
+            return std::log(clamped / minHz) / std::log(maxHz / minHz);
+        }
+
+        static int waveformToId(LfoDefinition::Waveform wf)
+        {
+            switch (wf)
+            {
+                case LfoDefinition::Waveform::sine: return 1;
+                case LfoDefinition::Waveform::triangle: return 2;
+                case LfoDefinition::Waveform::square: return 3;
+                case LfoDefinition::Waveform::saw: return 4;
+                case LfoDefinition::Waveform::random: return 5;
+            }
+            return 1;
+        }
+
+        static LfoDefinition::Waveform waveformFromId(int id)
+        {
+            switch (id)
+            {
+                case 2: return LfoDefinition::Waveform::triangle;
+                case 3: return LfoDefinition::Waveform::square;
+                case 4: return LfoDefinition::Waveform::saw;
+                case 5: return LfoDefinition::Waveform::random;
+                default: return LfoDefinition::Waveform::sine;
+            }
+        }
+
+        std::optional<LfoDefinition> getSelectedLfo() const
+        {
+            const auto lfos = SessionModulationModel::instance().getLfos();
+            if (selectedLfoIndex < 0 || selectedLfoIndex >= (int) lfos.size())
+                return std::nullopt;
+            return lfos[(size_t) selectedLfoIndex];
+        }
+
+        void setSelectedLfo(const LfoDefinition& lfo)
+        {
+            auto lfos = SessionModulationModel::instance().getLfos();
+            if (selectedLfoIndex < 0 || selectedLfoIndex >= (int) lfos.size())
+                return;
+            lfos[(size_t) selectedLfoIndex] = lfo;
+            SessionModulationModel::instance().setLfos(lfos);
+        }
+
+        juce::String getTitleText() const
+        {
+            if (currentView == View::lfoGrid) return "LFOs";
+            if (currentView == View::lfoDetail) return "LFO Settings";
+            return "Hardware Mapping";
+        }
+
+        void showMappingView()
+        {
+            activeMappingParameterIndex = -1;
+            currentView = View::mapping;
+            mappingView.setVisible(true);
+            lfoGridView.setVisible(false);
+            lfoDetailView.setVisible(false);
+            closeButton.setVisible(true);
+            backButton.setVisible(false);
+            repaint();
+        }
+
+        void showLfoGridView()
+        {
+            currentView = View::lfoGrid;
+            mappingView.setVisible(false);
+            lfoGridView.setVisible(true);
+            lfoDetailView.setVisible(false);
+            closeButton.setVisible(false);
+            backButton.setVisible(true);
+            lfoDeleteMode = false;
+            deleteLfoButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+            rebuildLfoGrid();
+            resized();
+            repaint();
+        }
+
+        void showLfoDetailView(int index)
+        {
+            selectedLfoIndex = index;
+            currentView = View::lfoDetail;
+            mappingView.setVisible(false);
+            lfoGridView.setVisible(false);
+            lfoDetailView.setVisible(true);
+            closeButton.setVisible(false);
+            backButton.setVisible(true);
+            updateDetailControlsFromModel();
+            resized();
+            repaint();
+        }
+
+        void rebuildLfoGrid()
+        {
+            lfoCards.clear();
+
+            int assignedIndex = -1;
+            if (activeMappingParameterIndex >= 0 && activeMappingParameterIndex < (int) parameterIds.size())
+            {
+                const auto a = SessionModulationModel::instance().getAssignment(makeParameterKey(nodeId, parameterIds[(size_t) activeMappingParameterIndex]));
+                if (a.source == ModulationSource::lfo)
+                    assignedIndex = a.lfoIndex;
+            }
+
+            const auto lfos = SessionModulationModel::instance().getLfos();
+            for (int i = 0; i < (int) lfos.size(); ++i)
+            {
+                auto* card = lfoCards.add(new LfoCard(
+                    [this, i](bool shouldAssign)
+                    {
+                        if (lfoDeleteMode)
+                            return;
+
+                        if (activeMappingParameterIndex < 0 || activeMappingParameterIndex >= (int) parameterIds.size())
+                            return;
+
+                        const auto parameterId = parameterIds[(size_t) activeMappingParameterIndex];
+                        if (!shouldAssign)
+                        {
+                            setAssignmentFromDropdown(nodeId, parameterId, "None", 0);
+                            if (activeMappingParameterIndex >= 0 && activeMappingParameterIndex < mappingBoxes.size())
+                                mappingBoxes[activeMappingParameterIndex]->setText("None", juce::dontSendNotification);
+                        }
+                        else
+                        {
+                            selectedLfoIndex = i;
+                            setAssignmentFromDropdown(nodeId, parameterId, "LFO", selectedLfoIndex);
+                            if (activeMappingParameterIndex >= 0 && activeMappingParameterIndex < mappingBoxes.size())
+                                mappingBoxes[activeMappingParameterIndex]->setText("LFO", juce::dontSendNotification);
+                        }
+
+                        juce::MessageManager::callAsync([this]()
+                        {
+                            rebuildLfoGrid();
+                            resized();
+                            repaint();
+                        });
+                    },
+                    [this, i]()
+                    {
+                        auto lfosLocal = SessionModulationModel::instance().getLfos();
+                        if (i < 0 || i >= (int) lfosLocal.size())
+                            return;
+
+                        if (lfoDeleteMode)
+                        {
+                            lfosLocal.erase(lfosLocal.begin() + i);
+                            SessionModulationModel::instance().setLfos(lfosLocal);
+                            if (selectedLfoIndex >= (int) lfosLocal.size())
+                                selectedLfoIndex = (int) lfosLocal.size() - 1;
+                            lfoDeleteMode = false;
+                            deleteLfoButton.setColour(juce::TextButton::buttonColourId, juce::Colours::darkgrey);
+
+                            juce::MessageManager::callAsync([this]()
+                            {
+                                rebuildLfoGrid();
+                                resized();
+                                repaint();
+                            });
+                            return;
+                        }
+
+                        selectedLfoIndex = i;
+                        showLfoDetailView(i);
+                    }));
+
+                card->setData(i, lfos[(size_t) i], i == assignedIndex);
+                lfoGridView.addAndMakeVisible(card);
+            }
+
+            deleteLfoButton.setVisible(!lfos.empty());
+        }
+
+        void setupKnob(juce::Slider& knob, const juce::String& title, juce::Label& valueLabel)
+        {
+            lfoDetailView.addAndMakeVisible(knob);
+            knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+            knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+
+            auto* titleLabel = detailTitleLabels.add(new juce::Label());
+            titleLabel->setText(title, juce::dontSendNotification);
+            titleLabel->setJustificationType(juce::Justification::centred);
+            titleLabel->setColour(juce::Label::textColourId, juce::Colours::white);
+            lfoDetailView.addAndMakeVisible(titleLabel);
+
+            valueLabel.setJustificationType(juce::Justification::centred);
+            valueLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+            lfoDetailView.addAndMakeVisible(valueLabel);
+        }
+
+        void updateDetailControlsFromModel()
+        {
+            auto lfo = getSelectedLfo();
+            if (!lfo.has_value())
+                return;
+
+            isUpdatingDetailControls = true;
+            waveformCombo.setSelectedId(waveformToId(lfo->waveform), juce::dontSendNotification);
+            freqKnob.setValue(knobFromFrequency(lfo->frequencyHz), juce::dontSendNotification);
+            depthKnob.setValue(lfo->depthPercent, juce::dontSendNotification);
+            offsetKnob.setValue(lfo->offsetPercent, juce::dontSendNotification);
+            isUpdatingDetailControls = false;
+
+            updateDetailValueLabels();
+            waveformPreview.repaint();
+        }
+
+        void updateDetailValueLabels()
+        {
+            auto lfo = getSelectedLfo();
+            if (!lfo.has_value())
+                return;
+
+            freqValueLabel.setText(juce::String(lfo->frequencyHz, 2) + " Hz", juce::dontSendNotification);
+            depthValueLabel.setText(juce::String(lfo->depthPercent, 0) + " %", juce::dontSendNotification);
+            offsetValueLabel.setText(juce::String(lfo->offsetPercent, 0) + " %", juce::dontSendNotification);
+        }
+
+        void layoutMappingView()
+        {
+            auto content = mappingView.getLocalBounds();
             const int rowH = 30;
             const int gap = 8;
             const int comboW = 140;
@@ -432,12 +992,104 @@ namespace FxCommon
             }
         }
 
-    private:
+        void layoutLfoGridView()
+        {
+            auto area = lfoGridView.getLocalBounds();
+            auto topRow = area.removeFromTop(48);
+
+            const auto lfos = SessionModulationModel::instance().getLfos();
+            if (lfos.empty())
+            {
+                deleteLfoButton.setVisible(false);
+                newLfoButton.setBounds(area.getCentreX() - 110, area.getCentreY() - 45, 220, 90);
+                for (auto* c : lfoCards)
+                    c->setVisible(false);
+                return;
+            }
+
+            newLfoButton.setBounds(topRow.getX() + 8, topRow.getY() + 6, 110, 34);
+            deleteLfoButton.setBounds(newLfoButton.getRight() + 10, topRow.getY() + 6, 110, 34);
+
+            const int columns = 3;
+            const int gap = 12;
+            const int cardW = (area.getWidth() - (columns + 1) * gap) / columns;
+            const int cardH = juce::jmax(120, (area.getHeight() - 3 * gap) / 2);
+
+            for (int i = 0; i < lfoCards.size(); ++i)
+            {
+                const int row = i / columns;
+                const int col = i % columns;
+                const int x = area.getX() + gap + col * (cardW + gap);
+                const int y = area.getY() + gap + row * (cardH + gap);
+                lfoCards[i]->setVisible(true);
+                lfoCards[i]->setBounds(x, y, cardW, cardH);
+            }
+        }
+
+        void layoutLfoDetailView()
+        {
+            auto area = lfoDetailView.getLocalBounds().reduced(6);
+
+            waveformCombo.setBounds(area.getX(), area.getY(), 180, 30);
+            area.removeFromTop(40);
+
+            waveformPreview.setBounds(area.removeFromTop(120));
+            area.removeFromTop(10);
+
+            const int knobW = 110;
+            const int knobH = 110;
+            const int totalW = knobW * 3 + 20 * 2;
+            const int startX = area.getCentreX() - totalW / 2;
+            const int y = area.getY() + 10;
+
+            freqKnob.setBounds(startX, y, knobW, knobH);
+            depthKnob.setBounds(startX + knobW + 20, y, knobW, knobH);
+            offsetKnob.setBounds(startX + (knobW + 20) * 2, y, knobW, knobH);
+
+            if (detailTitleLabels.size() >= 3)
+            {
+                detailTitleLabels[0]->setBounds(freqKnob.getX(), freqKnob.getY() - 22, knobW, 20);
+                detailTitleLabels[1]->setBounds(depthKnob.getX(), depthKnob.getY() - 22, knobW, 20);
+                detailTitleLabels[2]->setBounds(offsetKnob.getX(), offsetKnob.getY() - 22, knobW, 20);
+            }
+
+            freqValueLabel.setBounds(freqKnob.getX(), freqKnob.getBottom() + 2, knobW, 20);
+            depthValueLabel.setBounds(depthKnob.getX(), depthKnob.getBottom() + 2, knobW, 20);
+            offsetValueLabel.setBounds(offsetKnob.getX(), offsetKnob.getBottom() + 2, knobW, 20);
+        }
+
+        void timerCallback() override
+        {
+            if (isVisible() && (currentView == View::lfoGrid || currentView == View::lfoDetail))
+                repaint();
+        }
+
         juce::String nodeId;
+        View currentView = View::mapping;
+        bool lfoDeleteMode = false;
+        bool isUpdatingDetailControls = false;
+        int selectedLfoIndex = -1;
+        int activeMappingParameterIndex = -1;
+
         juce::TextButton closeButton;
+        juce::TextButton backButton;
+
+        juce::Component mappingView;
         juce::OwnedArray<juce::Label> parameterLabels;
-        juce::OwnedArray<juce::ComboBox> mappingBoxes;
+        juce::OwnedArray<MappingComboBox> mappingBoxes;
         std::vector<juce::String> parameterIds;
+
+        juce::Component lfoGridView;
+        juce::TextButton newLfoButton;
+        juce::TextButton deleteLfoButton;
+        juce::OwnedArray<LfoCard> lfoCards;
+
+        juce::Component lfoDetailView;
+        juce::ComboBox waveformCombo;
+        WaveformPreviewComponent waveformPreview{ *this };
+        juce::Slider freqKnob, depthKnob, offsetKnob;
+        juce::OwnedArray<juce::Label> detailTitleLabels;
+        juce::Label freqValueLabel, depthValueLabel, offsetValueLabel;
     };
 
     inline void initialiseHardwareMappingUI(juce::Component& owner,
@@ -476,6 +1128,88 @@ namespace FxCommon
             popup.setBounds(topLevel->getLocalBounds());
         else
             popup.setBounds(owner.getLocalBounds());
+    }
+
+    inline juce::String parameterIdFromParameter(const juce::AudioProcessorParameter* p)
+    {
+        if (p == nullptr)
+            return {};
+
+        if (auto* withId = dynamic_cast<const juce::AudioProcessorParameterWithID*>(p))
+            if (withId->paramID.isNotEmpty())
+                return withId->paramID;
+
+        return p->getName(64).replaceCharacters(" ", "_").toLowerCase();
+    }
+
+    inline ParameterAssignment getAssignmentForParameter(const juce::AudioProcessor* processor,
+                                                         const juce::AudioProcessorParameter* parameter)
+    {
+        if (processor == nullptr || parameter == nullptr)
+            return {};
+
+        const auto nodeId = makeRuntimeNodeId(processor);
+        const auto parameterId = parameterIdFromParameter(parameter);
+        return SessionModulationModel::instance().getAssignment(makeParameterKey(nodeId, parameterId));
+    }
+
+    inline bool isManualControlAllowed(const juce::AudioProcessor* processor,
+                                       const juce::AudioProcessorParameter* parameter)
+    {
+        return getAssignmentForParameter(processor, parameter).source == ModulationSource::none;
+    }
+
+    inline float evaluateLfoWave(const LfoDefinition& lfo, double timeSec)
+    {
+        const float phase = static_cast<float>(std::fmod(timeSec * juce::jmax(0.01f, lfo.frequencyHz), 1.0));
+
+        float wave = 0.0f;
+        switch (lfo.waveform)
+        {
+            case LfoDefinition::Waveform::sine: wave = std::sin(phase * juce::MathConstants<float>::twoPi); break;
+            case LfoDefinition::Waveform::triangle: wave = 1.0f - 4.0f * std::abs(phase - 0.5f); break;
+            case LfoDefinition::Waveform::square: wave = (phase < 0.5f ? 1.0f : -1.0f); break;
+            case LfoDefinition::Waveform::saw: wave = (2.0f * phase) - 1.0f; break;
+            case LfoDefinition::Waveform::random:
+            {
+                const int step = juce::jlimit(0, 15, static_cast<int>(phase * 16.0f));
+                static constexpr float seq[16] = { 0.84f, -0.18f, 0.35f, -0.92f, 0.11f, 0.72f, -0.47f, 0.28f,
+                                                   -0.73f, 0.64f, -0.05f, 0.51f, -0.88f, 0.22f, -0.31f, 0.94f };
+                wave = seq[step];
+                break;
+            }
+        }
+
+        const float depth = juce::jlimit(0.0f, 1.0f, lfo.depthPercent / 100.0f);
+        const float offset = juce::jlimit(-1.0f, 1.0f, (lfo.offsetPercent / 100.0f) * 2.0f - 1.0f);
+        return juce::jlimit(-1.0f, 1.0f, wave * depth + offset);
+    }
+
+    inline float getDisplayValueForParameter(const juce::AudioProcessor* processor,
+                                             const juce::AudioParameterFloat* parameter)
+    {
+        if (processor == nullptr || parameter == nullptr)
+            return 0.0f;
+
+        const float baseValue = parameter->get();
+        const auto assignment = getAssignmentForParameter(processor, parameter);
+        if (assignment.source != ModulationSource::lfo)
+            return baseValue;
+
+        auto lfos = SessionModulationModel::instance().getLfos();
+        if (lfos.empty())
+            return baseValue;
+
+        const int idx = juce::jlimit(0, static_cast<int>(lfos.size()) - 1, assignment.lfoIndex);
+        const auto lfo = lfos[(size_t) idx];
+
+        const auto& range = parameter->getNormalisableRange();
+
+        const double timeSec = juce::Time::getMillisecondCounterHiRes() * 0.001;
+        const float mod = evaluateLfoWave(lfo, timeSec); // -1..1
+
+        const float modNorm = juce::jlimit(0.0f, 1.0f, (mod + 1.0f) * 0.5f);
+        return static_cast<float>(range.convertFrom0to1(modNorm));
     }
 
 } // namespace FxCommon

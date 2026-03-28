@@ -290,8 +290,10 @@ public:
         {
             if (gainParam && bypassParam)
             {
-                const float pGain = *gainParam;
+                const float pGain = FxCommon::getDisplayValueForParameter(&processor, gainParam);
                 const bool pBypass = static_cast<bool>(*bypassParam);
+
+                gainSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, gainParam));
 
                 if (std::abs ((float)gainSlider.getValue() - pGain) > 0.0005f)
                     gainSlider.setValue (pGain, dontSendNotification);
@@ -310,6 +312,9 @@ public:
 
             if (s == &gainSlider && gainParam)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, gainParam))
+                    return;
+
                 const float sliderVal = static_cast<float>(gainSlider.getValue());
                 gainParam->setValueNotifyingHost (sliderVal);
             }

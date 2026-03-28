@@ -308,11 +308,12 @@ public:
     private:
         void timerCallback() override
         {
-            // Poll parameters and update UI like GainProcessor
             if (rateParameter && bypassParameter)
             {
-                const float pRate = *rateParameter;
+                const float pRate = FxCommon::getDisplayValueForParameter(&processor, rateParameter);
                 const bool pBy = static_cast<bool>(*bypassParameter);
+
+                rateSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, rateParameter));
 
                 if (std::abs((float)rateSlider.getValue() - pRate) > 0.001f)
                     rateSlider.setValue(pRate, juce::dontSendNotification);
@@ -332,9 +333,9 @@ public:
 
             if (s == &rateSlider && rateParameter)
             {
-                // IMPORTANT:
-                // AudioProcessorParameter::setValueNotifyingHost expects the normalized value (0..1).
-                // The slider uses the real Hz range (0.05..6.0). Convert to 0..1 here.
+                if (!FxCommon::isManualControlAllowed(&processor, rateParameter))
+                    return;
+
                 const float realVal = static_cast<float>(rateSlider.getValue());
                 const float normalized = static_cast<float>(rateParameter->getNormalisableRange().convertTo0to1(realVal));
                 rateParameter->setValueNotifyingHost(normalized);

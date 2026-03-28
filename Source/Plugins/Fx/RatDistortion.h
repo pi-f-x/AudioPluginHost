@@ -401,12 +401,15 @@ public:
         {
             if (driveParameter && filterParameter && volumeParameter && bypassParameter)
             {
-                const float pDrive = *driveParameter;
-                const float pFilter = *filterParameter;
-                const float pVolume = *volumeParameter;
+                const float pDrive = FxCommon::getDisplayValueForParameter(&processor, driveParameter);
+                const float pFilter = FxCommon::getDisplayValueForParameter(&processor, filterParameter);
+                const float pVolume = FxCommon::getDisplayValueForParameter(&processor, volumeParameter);
                 const bool pBypass = static_cast<bool>(*bypassParameter);
 
-                // If a slider is manually inverted we update the slider with (1 - param)
+                distortionSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, driveParameter));
+                filterSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, filterParameter));
+                volumeSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, volumeParameter));
+
                 const float displayDrive = invertDistortion ? (1.0f - pDrive) : pDrive;
                 const float displayFilter = pFilter;
                 const float displayVolume = invertVolume ? (1.0f - pVolume) : pVolume;
@@ -418,11 +421,9 @@ public:
                 if (std::abs((float)volumeSlider.getValue() - displayVolume) > 0.001f)
                     volumeSlider.setValue(displayVolume, dontSendNotification);
 
-                // keep ToggleButton in sync with parameter (no host notify)
                 if (bypassButton.getToggleState() != pBypass)
                     bypassButton.setToggleState(pBypass, dontSendNotification);
 
-                // repaint for LED state changes
                 repaint();
             }
         }
@@ -435,16 +436,21 @@ public:
 
             if (s == &distortionSlider && driveParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, driveParameter))
+                    return;
                 const float sliderVal = static_cast<float>(distortionSlider.getValue());
-                // Manuell invertieren: Slider zeigt (1 - param) wenn invertDistortion == true
                 driveParameter->setValueNotifyingHost(invertDistortion ? (1.0f - sliderVal) : sliderVal);
             }
             else if (s == &filterSlider && filterParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, filterParameter))
+                    return;
                 filterParameter->setValueNotifyingHost(static_cast<float>(filterSlider.getValue()));
             }
             else if (s == &volumeSlider && volumeParameter)
             {
+                if (!FxCommon::isManualControlAllowed(&processor, volumeParameter))
+                    return;
                 const float sliderVal = static_cast<float>(volumeSlider.getValue());
                 volumeParameter->setValueNotifyingHost(invertVolume ? (1.0f - sliderVal) : sliderVal);
             }
