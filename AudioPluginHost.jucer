@@ -64,6 +64,18 @@
       <FILE id="o0Tw6N" name="proaudio.path" compile="0" resource="1" file="Source/BinaryData/proaudio.path"/>
     </GROUP>
     <GROUP id="{CFED5B3D-D1D8-0F3F-4D67-B2A810D057EF}" name="Source">
+      <GROUP id="{63C773C8-4305-87DD-DB3F-6D1143EFEC61}" name="Hardware">
+        <FILE id="B4nVgr" name="GpioBackend.cpp" compile="1" resource="0" file="Source/GpioBackend.cpp"/>
+        <FILE id="vh9d4t" name="GpioBackend.h" compile="0" resource="0" file="Source/GpioBackend.h"/>
+        <FILE id="Icotne" name="HardwareCalibration.cpp" compile="1" resource="0"
+              file="Source/HardwareCalibration.cpp"/>
+        <FILE id="d5YWod" name="HardwareCalibration.h" compile="0" resource="0"
+              file="Source/HardwareCalibration.h"/>
+        <FILE id="tMZnwP" name="HardwareInputService.cpp" compile="1" resource="0"
+              file="Source/HardwareInputService.cpp"/>
+        <FILE id="X46qR7" name="HardwareInputService.h" compile="0" resource="0"
+              file="Source/HardwareInputService.h"/>
+      </GROUP>
       <GROUP id="{6F257CD6-CE86-9BBC-54C1-45E43249E414}" name="Plugins">
         <GROUP id="{C6F18735-16F3-3AB3-58F1-44BB680913EC}" name="Fx">
           <FILE id="nQCIx1" name="GainBoost.h" compile="0" resource="0" file="Source/Plugins/Fx/GainBoost.h"/>

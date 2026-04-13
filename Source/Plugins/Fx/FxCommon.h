@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <optional>
+#include <atomic>
 
 namespace FxCommon
 {
@@ -181,7 +182,8 @@ namespace FxCommon
 
             juce::ValueTree root("Modulation");
             juce::ValueTree lfoRoot("Lfos");
-            for (const auto& lfo : lfos)
+            for (const auto& lfo :
+                 lfos)
             {
                 juce::ValueTree n("Lfo");
                 n.setProperty("waveform", static_cast<int>(lfo.waveform), nullptr);
@@ -368,7 +370,7 @@ namespace FxCommon
                 if (auto lfo = getSelectedLfo())
                 {
                     lfo->waveform = waveformFromId(waveformCombo.getSelectedId());
-                    setSelectedLfo(*lfo);
+                    setSelectedLfo(* lfo);
                 }
 
                 waveformPreview.repaint();
@@ -392,7 +394,7 @@ namespace FxCommon
                 if (auto lfo = getSelectedLfo())
                 {
                     lfo->frequencyHz = frequencyFromKnob((float) freqKnob.getValue());
-                    setSelectedLfo(*lfo);
+                    setSelectedLfo(* lfo);
                 }
                 updateDetailValueLabels();
                 rebuildLfoGrid();
@@ -405,7 +407,7 @@ namespace FxCommon
                 if (auto lfo = getSelectedLfo())
                 {
                     lfo->depthPercent = (float) depthKnob.getValue();
-                    setSelectedLfo(*lfo);
+                    setSelectedLfo(* lfo);
                 }
                 updateDetailValueLabels();
                 rebuildLfoGrid();
@@ -418,7 +420,7 @@ namespace FxCommon
                 if (auto lfo = getSelectedLfo())
                 {
                     lfo->offsetPercent = (float) offsetKnob.getValue();
-                    setSelectedLfo(*lfo);
+                    setSelectedLfo(* lfo);
                 }
                 updateDetailValueLabels();
                 rebuildLfoGrid();
@@ -1185,6 +1187,59 @@ namespace FxCommon
         return juce::jlimit(-1.0f, 1.0f, wave * depth + offset);
     }
 
+    inline std::atomic<float>& hardwarePoti1Value()
+    {
+        static std::atomic<float> v { 0.0f };
+        return v;
+    }
+
+    inline std::atomic<float>& hardwarePoti2Value()
+    {
+        static std::atomic<float> v { 0.0f };
+        return v;
+    }
+
+    inline std::atomic<bool>& hardwareFootswitch1Value()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
+    inline std::atomic<bool>& hardwareFootswitch2Value()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
+    inline std::atomic<bool>& hardwareFootswitch3Value()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
+    inline void setHardwareInputSnapshot(float poti1, float poti2,
+                                     bool footswitch1, bool footswitch2, bool footswitch3)
+    {
+        hardwarePoti1Value().store(juce::jlimit(0.0f, 1.0f, poti1));
+        hardwarePoti2Value().store(juce::jlimit(0.0f, 1.0f, poti2));
+        hardwareFootswitch1Value().store(footswitch1);
+        hardwareFootswitch2Value().store(footswitch2);
+        hardwareFootswitch3Value().store(footswitch3);
+    }
+
+    inline float getHardwareSourceNormalised(ModulationSource source)
+    {
+        switch (source)
+        {
+            case ModulationSource::poti1: return hardwarePoti1Value().load();
+            case ModulationSource::poti2: return hardwarePoti2Value().load();
+            case ModulationSource::footswitch1: return hardwareFootswitch1Value().load() ? 1.0f : 0.0f;
+            case ModulationSource::footswitch2: return hardwareFootswitch2Value().load() ? 1.0f : 0.0f;
+            case ModulationSource::footswitch3: return hardwareFootswitch3Value().load() ? 1.0f : 0.0f;
+            default: return 0.0f;
+        }
+    }
+
     inline float getDisplayValueForParameter(const juce::AudioProcessor* processor,
                                              const juce::AudioParameterFloat* parameter)
     {
@@ -1193,23 +1248,30 @@ namespace FxCommon
 
         const float baseValue = parameter->get();
         const auto assignment = getAssignmentForParameter(processor, parameter);
-        if (assignment.source != ModulationSource::lfo)
-            return baseValue;
 
-        auto lfos = SessionModulationModel::instance().getLfos();
-        if (lfos.empty())
+        if (assignment.source == ModulationSource::none)
             return baseValue;
-
-        const int idx = juce::jlimit(0, static_cast<int>(lfos.size()) - 1, assignment.lfoIndex);
-        const auto lfo = lfos[(size_t) idx];
 
         const auto& range = parameter->getNormalisableRange();
 
-        const double timeSec = juce::Time::getMillisecondCounterHiRes() * 0.001;
-        const float mod = evaluateLfoWave(lfo, timeSec); // -1..1
+        if (assignment.source == ModulationSource::lfo)
+        {
+            auto lfos = SessionModulationModel::instance().getLfos();
+            if (lfos.empty())
+                return baseValue;
 
-        const float modNorm = juce::jlimit(0.0f, 1.0f, (mod + 1.0f) * 0.5f);
-        return static_cast<float>(range.convertFrom0to1(modNorm));
+            const int idx = juce::jlimit(0, static_cast<int>(lfos.size()) - 1, assignment.lfoIndex);
+            const auto lfo = lfos[(size_t) idx];
+
+            const double timeSec = juce::Time::getMillisecondCounterHiRes() * 0.001;
+            const float mod = evaluateLfoWave(lfo, timeSec); // -1..1
+
+            const float modNorm = juce::jlimit(0.0f, 1.0f, (mod + 1.0f) * 0.5f);
+            return static_cast<float>(range.convertFrom0to1(modNorm));
+        }
+
+        const float hwNorm = getHardwareSourceNormalised(assignment.source);
+        return static_cast<float>(range.convertFrom0to1(juce::jlimit(0.0f, 1.0f, hwNorm)));
     }
 
 } // namespace FxCommon

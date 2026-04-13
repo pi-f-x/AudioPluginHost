@@ -36,6 +36,7 @@
 
 #include "../Plugins/PluginGraph.h"
 #include "GraphEditorPanel.h"
+#include "../HardwareInputService.h"
 
 
 //==============================================================================
@@ -143,6 +144,8 @@ private:
 
     KnownPluginList::SortMethod pluginSortMethod;
     Array<PluginDescriptionAndPreference> pluginDescriptionsAndPreference;
+
+    std::unique_ptr<HardwareInputService> hardwareInputService;
 
     class PluginListWindow;
     std::unique_ptr<PluginListWindow> pluginListWindow;

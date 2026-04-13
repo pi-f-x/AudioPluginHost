@@ -668,7 +668,6 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
     explicit ConnectorComponent (GraphEditorPanel& p)
         : panel (p), graph (p.graph)
     {
-        setAlwaysOnTop (true);
     }
 
     void setInput (AudioProcessorGraph::NodeAndChannel newSource)
@@ -691,20 +690,32 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
 
     void dragStart (Point<float> pos)
     {
+        dragging = true;
         lastInputPos = pos;
         resizeToFit();
     }
 
     void dragEnd (Point<float> pos)
     {
+        dragging = true;
         lastOutputPos = pos;
         resizeToFit();
+    }
+
+    void setLineColour (bool shouldUse, Colour colourToUse = Colours::transparentBlack)
+    {
+        useLineColour = shouldUse;
+        lineColour = colourToUse;
+        repaint();
     }
 
     void update()
     {
         Point<float> p1, p2;
         getPoints (p1, p2);
+
+        dragging = (connection.source.nodeID == AudioProcessorGraph::NodeID()
+                    || connection.destination.nodeID == AudioProcessorGraph::NodeID());
 
         if (lastInputPos != p1 || lastOutputPos != p2)
             resizeToFit();
@@ -715,7 +726,15 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         Point<float> p1, p2;
         getPoints (p1, p2);
 
-        auto newBounds = Rectangle<float> (p1, p2).expanded (4.0f).getSmallestIntegerContainer();
+        auto boundsArea = Rectangle<float> (p1, p2).expanded (18.0f);
+
+        if (boundsArea.getWidth() < 24.0f)
+            boundsArea = boundsArea.withWidth (24.0f).withCentre (boundsArea.getCentre());
+
+        if (boundsArea.getHeight() < 24.0f)
+            boundsArea = boundsArea.withHeight (24.0f).withCentre (boundsArea.getCentre());
+
+        auto newBounds = boundsArea.getSmallestIntegerContainer();
 
         if (newBounds != getBounds())
             setBounds (newBounds);
@@ -731,17 +750,69 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         p2 = lastOutputPos;
 
         if (auto* src = panel.getComponentForPlugin (connection.source.nodeID))
-            p1 = src->getPinPos (connection.source.channelIndex, false);
+        {
+            auto srcPos = src->getPinPos (connection.source.channelIndex, false);
+            if (srcPos != Point<float>())
+                p1 = srcPos;
+        }
 
         if (auto* dest = panel.getComponentForPlugin (connection.destination.nodeID))
-            p2 = dest->getPinPos (connection.destination.channelIndex, true);
+        {
+            auto dstPos = dest->getPinPos (connection.destination.channelIndex, true);
+            if (dstPos != Point<float>())
+                p2 = dstPos;
+        }
     }
 
-    void setLineColour (bool shouldUse, Colour colourToUse = Colours::transparentBlack)
+    void resized() override
     {
-        useLineColour = shouldUse;
-        lineColour = colourToUse;
-        repaint();
+        Point<float> p1, p2;
+        getPoints (p1, p2);
+
+        p1 -= getPosition().toFloat();
+        p2 -= getPosition().toFloat();
+
+        const Point<float> c1 (p1.x, (p1.y + p2.y) * 0.5f);
+        const Point<float> c2 (p2.x, (p1.y + p2.y) * 0.5f);
+
+        Path curve;
+        curve.startNewSubPath (p1);
+        curve.cubicTo (c1, c2, p2);
+
+        linePath.clear();
+        hitPath.clear();
+        arrowPath.clear();
+
+        PathStrokeType (3.5f, PathStrokeType::curved, PathStrokeType::rounded).createStrokedPath (linePath, curve);
+        PathStrokeType (10.0f, PathStrokeType::curved, PathStrokeType::rounded).createStrokedPath (hitPath, curve);
+
+        const auto t = 0.5f;
+        const auto oneMinusT = 1.0f - t;
+
+        const auto pointOnCurve = p1 * (oneMinusT * oneMinusT * oneMinusT)
+                                + c1 * (3.0f * oneMinusT * oneMinusT * t)
+                                + c2 * (3.0f * oneMinusT * t * t)
+                                + p2 * (t * t * t);
+
+        auto tangent = (c1 - p1) * (3.0f * oneMinusT * oneMinusT)
+                     + (c2 - c1) * (6.0f * oneMinusT * t)
+                     + (p2 - c2) * (3.0f * t * t);
+
+        if (tangent.getDistanceFromOrigin() < 0.001f)
+            tangent = { 0.0f, 1.0f };
+        else
+            tangent /= tangent.getDistanceFromOrigin();
+
+        const auto arrowLength = 13.0f;
+        const auto arrowHalfWidth = 6.0f;
+        const auto tip = pointOnCurve + tangent * 6.0f;
+        const auto base = tip - tangent * arrowLength;
+        const Point<float> normal (-tangent.y, tangent.x);
+
+        arrowPath.startNewSubPath (tip);
+        arrowPath.lineTo (base + normal * arrowHalfWidth);
+        arrowPath.lineTo (base - normal * arrowHalfWidth);
+        arrowPath.closeSubPath();
     }
 
     void paint (Graphics& g) override
@@ -754,13 +825,22 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
             g.setColour (Colours::green);
 
         g.fillPath (linePath);
+
+        if (! dragging
+            && connection.source.nodeID != AudioProcessorGraph::NodeID()
+            && connection.destination.nodeID != AudioProcessorGraph::NodeID())
+        {
+            g.fillPath (arrowPath);
+            g.setColour (Colours::black.withAlpha (0.8f));
+            g.strokePath (arrowPath, PathStrokeType (1.0f));
+        }
     }
 
     GraphEditorPanel& panel;
     PluginGraph& graph;
     AudioProcessorGraph::Connection connection { { {}, 0 }, { {}, 0 } };
     Point<float> lastInputPos, lastOutputPos;
-    Path linePath, hitPath;
+    Path linePath, hitPath, arrowPath;
     bool dragging = false;
     bool useLineColour = false;
     Colour lineColour = Colours::transparentBlack;
@@ -1037,6 +1117,9 @@ void GraphEditorPanel::updateComponents()
         }
     }
 
+    for (auto* node : nodes)
+        node->toFront (false);
+
     addPluginButton.toFront (false);
     deleteButton.toFront (false);
 
@@ -1133,7 +1216,7 @@ void GraphEditorPanel::showPopupMenu (Point<int> mousePos)
     {
         mainWindow->addPluginsToMenu (*menu);
 
-        menu->showMenuAsync ({},
+        menu->showMenuAsync ( {},
                              ModalCallbackFunction::create ([this, mousePos] (int r)
                                                             {
                                                                 if (auto* mainWin = findParentComponentOfClass<MainHostWindow>())
@@ -1192,7 +1275,43 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
             connection.destination = pin->pin;
         }
 
-        graph.graph.addConnection (connection);
+        if (! graph.graph.addConnection (connection))
+            return;
+
+        AudioProcessorGraph::NodeID inputNodeID, outputNodeID;
+
+        for (auto* node : graph.graph.getNodes())
+        {
+            if (auto* processor = node->getProcessor())
+            {
+                if (processor->getName() == "Audio Input")
+                    inputNodeID = node->nodeID;
+                else if (processor->getName() == "Audio Output")
+                    outputNodeID = node->nodeID;
+            }
+        }
+
+        const auto isDirectInputToOutput = [inputNodeID, outputNodeID] (const AudioProcessorGraph::Connection& c)
+        {
+            return c.source.nodeID == inputNodeID
+                && c.destination.nodeID == outputNodeID
+                && ! c.source.isMIDI()
+                && ! c.destination.isMIDI();
+        };
+
+        if (inputNodeID != AudioProcessorGraph::NodeID()
+            && outputNodeID != AudioProcessorGraph::NodeID()
+            && ! isDirectInputToOutput (connection))
+        {
+            Array<AudioProcessorGraph::Connection> connectionsToRemove;
+
+            for (auto& c : graph.graph.getConnections())
+                if (isDirectInputToOutput (c))
+                    connectionsToRemove.add (c);
+
+            for (auto& c : connectionsToRemove)
+                graph.graph.removeConnection (c);
+        }
     }
 }
 

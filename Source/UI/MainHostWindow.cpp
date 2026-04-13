@@ -387,11 +387,19 @@ MainHostWindow::MainHostWindow()
   #endif
 
     getCommandManager().setFirstCommandTarget (this);
+
+    hardwareInputService = std::make_unique<HardwareInputService>();
+    hardwareInputService->start();
 }
 
 MainHostWindow::~MainHostWindow()
 {
     pluginListWindow = nullptr;
+
+    if (hardwareInputService != nullptr)
+        hardwareInputService->stop();
+    hardwareInputService = nullptr;
+
     knownPluginList.removeChangeListener (this);
 
     if (auto* g = graphHolder->graph.get())
