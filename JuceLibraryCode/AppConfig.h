@@ -10,6 +10,8 @@
 
 #pragma once
 
+#define JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED 1
+
 #define JUCE_ALSA 1
 #define JUCE_CONTENT_SHARING 1
 #define JUCE_DIRECTSOUND 1
