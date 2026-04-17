@@ -55,6 +55,17 @@ message(STATUS "Using JUCE modules: ${JUCE_MODULES_PATH}")
 # Create the AudioPluginHost application
 add_executable(AudioPluginHost)
 
+set(JUCE_USE_FREETYPE_VALUE 0)
+if(UNIX AND NOT APPLE)
+    find_package(Freetype QUIET)
+    if(FREETYPE_FOUND)
+        set(JUCE_USE_FREETYPE_VALUE 1)
+        message(STATUS "Found Freetype: ${FREETYPE_INCLUDE_DIRS}")
+    else()
+        message(WARNING "Freetype headers not found. Building with JUCE_USE_FREETYPE=0")
+    endif()
+endif()
+
 # Set target properties
 set_target_properties(AudioPluginHost PROPERTIES
     MACOSX_BUNDLE TRUE
@@ -74,6 +85,10 @@ target_include_directories(AudioPluginHost PRIVATE
     ${JUCE_VST3_SDK_PATH}
     ${JUCE_LV2_SDK_PATH}
     ${JUCE_LV2_HEADERS_PATH})
+
+if(FREETYPE_FOUND)
+    target_include_directories(AudioPluginHost PRIVATE ${FREETYPE_INCLUDE_DIRS})
+endif()
 
 # Add source files
 target_sources(AudioPluginHost PRIVATE
@@ -120,7 +135,8 @@ target_compile_options(AudioPluginHost PRIVATE
 
 # Compile definitions
 target_compile_definitions(AudioPluginHost PRIVATE
-    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
+    JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
+    JUCE_USE_FREETYPE=${JUCE_USE_FREETYPE_VALUE})
 
 # Compiler-specific settings
 if(MSVC)
@@ -154,4 +170,8 @@ else()
         asound
         dl
         X11)
+
+    if(FREETYPE_FOUND)
+        target_link_libraries(AudioPluginHost PRIVATE ${FREETYPE_LIBRARIES})
+    endif()
 endif()
