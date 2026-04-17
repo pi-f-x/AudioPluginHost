@@ -18,6 +18,7 @@ endif()
 set(JUCE_MODULES_PATH "${JUCE_DIR}/modules")
 set(JUCE_VST3_SDK_PATH "${JUCE_MODULES_PATH}/juce_audio_processors_headless/format_types/VST3_SDK")
 set(JUCE_LV2_SDK_PATH "${JUCE_MODULES_PATH}/juce_audio_processors_headless/format_types/LV2_SDK")
+set(JUCE_LV2_HEADERS_PATH "${JUCE_LV2_SDK_PATH}/lv2")
 
 # Check if JUCE modules exist
 if(NOT EXISTS "${JUCE_MODULES_PATH}/juce_core/juce_core.h")
@@ -40,6 +41,12 @@ if(NOT EXISTS "${JUCE_LV2_SDK_PATH}/juce_lv2_config.h")
         "LV2 SDK headers not found at: ${JUCE_LV2_SDK_PATH}\n"
         "Expected: ${JUCE_LV2_SDK_PATH}/juce_lv2_config.h\n"
         "Either provide JUCE LV2 SDK headers or disable JUCE_PLUGINHOST_LV2 in JuceLibraryCode/AppConfig.h")
+endif()
+
+if(NOT EXISTS "${JUCE_LV2_HEADERS_PATH}/lv2/core/lv2.h")
+    message(FATAL_ERROR
+        "LV2 core headers not found at: ${JUCE_LV2_HEADERS_PATH}\n"
+        "Expected: ${JUCE_LV2_HEADERS_PATH}/lv2/core/lv2.h")
 endif()
 
 message(STATUS "Found JUCE at: ${JUCE_DIR}")
@@ -65,7 +72,8 @@ target_include_directories(AudioPluginHost PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode
     ${JUCE_MODULES_PATH}
     ${JUCE_VST3_SDK_PATH}
-    ${JUCE_LV2_SDK_PATH})
+    ${JUCE_LV2_SDK_PATH}
+    ${JUCE_LV2_HEADERS_PATH})
 
 # Add source files
 target_sources(AudioPluginHost PRIVATE
