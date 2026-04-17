@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.16)
 
 project(AudioPluginHost VERSION 1.0.0 LANGUAGES CXX)
@@ -17,6 +16,7 @@ endif()
 
 # Construct the full path to modules
 set(JUCE_MODULES_PATH "${JUCE_DIR}/modules")
+set(JUCE_VST3_SDK_PATH "${JUCE_MODULES_PATH}/juce_audio_processors_headless/format_types/VST3_SDK")
 
 # Check if JUCE modules exist
 if(NOT EXISTS "${JUCE_MODULES_PATH}/juce_core/juce_core.h")
@@ -25,6 +25,13 @@ if(NOT EXISTS "${JUCE_MODULES_PATH}/juce_core/juce_core.h")
         "Please set JUCE_DIR environment variable:\n"
         "  export JUCE_DIR=/path/to/JUCE\n"
         "Or install JUCE to: $HOME/JUCE")
+endif()
+
+if(NOT EXISTS "${JUCE_VST3_SDK_PATH}/pluginterfaces/base/fplatform.h")
+    message(FATAL_ERROR
+        "VST3 SDK headers not found at: ${JUCE_VST3_SDK_PATH}\n"
+        "Expected: ${JUCE_VST3_SDK_PATH}/pluginterfaces/base/fplatform.h\n"
+        "Either provide JUCE with bundled VST3 SDK or disable JUCE_PLUGINHOST_VST3 in JuceLibraryCode/AppConfig.h")
 endif()
 
 message(STATUS "Found JUCE at: ${JUCE_DIR}")
@@ -48,7 +55,8 @@ target_include_directories(AudioPluginHost PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Source/UI
     ${CMAKE_CURRENT_SOURCE_DIR}/Assets
     ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode
-    ${JUCE_MODULES_PATH})
+    ${JUCE_MODULES_PATH}
+    ${JUCE_VST3_SDK_PATH})
 
 # Add source files
 target_sources(AudioPluginHost PRIVATE
