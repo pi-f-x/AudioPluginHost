@@ -114,6 +114,11 @@ namespace
  #endif
 #endif
 
+GpioBackend::GpioBackend()
+    : GpioBackend (Config {})
+{
+}
+
 GpioBackend::GpioBackend (Config cfg)
     : config (std::move (cfg))
 {

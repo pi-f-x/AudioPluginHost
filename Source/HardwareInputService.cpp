@@ -11,6 +11,11 @@
 #include "HardwareInputService.h"
 #include "Plugins/Fx/FxCommon.h"
 
+HardwareInputService::HardwareInputService()
+    : HardwareInputService (Settings {})
+{
+}
+
 HardwareInputService::HardwareInputService (Settings s)
     : settings (std::move (s)),
       backend (settings.backendConfig),
