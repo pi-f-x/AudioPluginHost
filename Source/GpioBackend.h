@@ -39,7 +39,7 @@ public:
         double timestampSeconds = 0.0;
     };
 
-    explicit GpioBackend (Config cfg = {});
+    explicit GpioBackend (Config cfg = Config());
     ~GpioBackend();
 
     bool initialise();

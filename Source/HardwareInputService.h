@@ -28,7 +28,7 @@ public:
         Hardware::AnalogCalibration poti2Calibration;
     };
 
-    explicit HardwareInputService (Settings settings = {});
+    explicit HardwareInputService (Settings settings = Settings());
     ~HardwareInputService() override;
 
     bool start();

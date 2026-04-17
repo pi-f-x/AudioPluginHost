@@ -11,6 +11,96 @@
 #include "GpioBackend.h"
 
 #include <cmath>
+#include <fstream>
+
+namespace
+{
+   #if JUCE_LINUX
+    static bool writeTextFile (const juce::String& path, const juce::String& value)
+    {
+        std::ofstream stream (path.toRawUTF8());
+
+        if (! stream.is_open())
+            return false;
+
+        stream << value.toRawUTF8() << '\n';
+        return stream.good();
+    }
+
+    static juce::String readTextFile (const juce::String& path)
+    {
+        std::ifstream stream (path.toRawUTF8());
+
+        if (! stream.is_open())
+            return {};
+
+        std::string value;
+        std::getline (stream, value);
+        return juce::String (value);
+    }
+
+    static bool ensureGpioExported (int pin)
+    {
+        const auto gpioPath = juce::String ("/sys/class/gpio/gpio") + juce::String (pin);
+
+        if (juce::File (gpioPath).exists())
+            return true;
+
+        if (! writeTextFile ("/sys/class/gpio/export", juce::String (pin)))
+            return false;
+
+        for (int i = 0; i < 20; ++i)
+        {
+            if (juce::File (gpioPath).exists())
+                return true;
+
+            juce::Thread::sleep (1);
+        }
+
+        return juce::File (gpioPath).exists();
+    }
+
+    static bool configureGpioDirection (int pin, const juce::String& direction)
+    {
+        if (! ensureGpioExported (pin))
+            return false;
+
+        return writeTextFile (juce::String ("/sys/class/gpio/gpio") + juce::String (pin) + "/direction",
+                              direction);
+    }
+
+    static bool configureGpioActiveLow (int pin, bool activeLow)
+    {
+        if (! ensureGpioExported (pin))
+            return false;
+
+        return writeTextFile (juce::String ("/sys/class/gpio/gpio") + juce::String (pin) + "/active_low",
+                              activeLow ? "1" : "0");
+    }
+
+    static bool writeGpioValue (int pin, bool value)
+    {
+        if (! ensureGpioExported (pin))
+            return false;
+
+        return writeTextFile (juce::String ("/sys/class/gpio/gpio") + juce::String (pin) + "/value",
+                              value ? "1" : "0");
+    }
+
+    static bool readGpioValue (int pin, bool fallback)
+    {
+        if (! ensureGpioExported (pin))
+            return fallback;
+
+        const auto text = readTextFile (juce::String ("/sys/class/gpio/gpio") + juce::String (pin) + "/value");
+
+        if (text.isEmpty())
+            return fallback;
+
+        return text.trim().getIntValue() != 0;
+    }
+   #endif
+}
 
 #if JUCE_LINUX
  #include <fcntl.h>
@@ -39,34 +129,94 @@ bool GpioBackend::initialise()
     if (initialised)
         return true;
 
-   #if JUCE_LINUX && GPIO_BACKEND_HAS_I2C
+#if JUCE_LINUX
+    const auto gpioReady = configureGpioDirection (config.gpioFootswitch1, "in")
+                        && configureGpioDirection (config.gpioFootswitch2, "in")
+                        && configureGpioDirection (config.gpioFootswitch3, "in")
+                        && configureGpioActiveLow (config.gpioFootswitch1, true)
+                        && configureGpioActiveLow (config.gpioFootswitch2, true)
+                        && configureGpioActiveLow (config.gpioFootswitch3, true)
+                        && configureGpioDirection (config.gpioLed1, "out")
+                        && configureGpioDirection (config.gpioLed2, "out")
+                        && configureGpioDirection (config.gpioLed3, "out")
+                        && writeGpioValue (config.gpioLed1, false)
+                        && writeGpioValue (config.gpioLed2, false)
+                        && writeGpioValue (config.gpioLed3, false);
+
+   #if GPIO_BACKEND_HAS_I2C
     i2cFd = ::open (config.i2cDevice.toRawUTF8(), O_RDWR);
     if (i2cFd >= 0)
     {
         if (::ioctl (i2cFd, I2C_SLAVE, config.i2cAddress) >= 0)
-            initialised = true;
+            initialised = gpioReady;
         else
         {
             ::close (i2cFd);
             i2cFd = -1;
+            initialised = gpioReady;
         }
     }
+    else
+    {
+        initialised = gpioReady;
+    }
    #else
-    initialised = true;
+    initialised = gpioReady;
    #endif
+#else
+    initialised = true;
+#endif
 
     return initialised;
 }
 
 void GpioBackend::shutdown()
 {
-   #if JUCE_LINUX && GPIO_BACKEND_HAS_I2C
+#if JUCE_LINUX
+    if (config.gpioLed1 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed1)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed1));
+    }
+
+    if (config.gpioLed2 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed2)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed2));
+    }
+
+    if (config.gpioLed3 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed3)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed3));
+    }
+
+    if (config.gpioFootswitch1 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch1)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch1));
+    }
+
+    if (config.gpioFootswitch2 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch2)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch2));
+    }
+
+    if (config.gpioFootswitch3 >= 0)
+    {
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch3)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch3));
+    }
+
+   #if GPIO_BACKEND_HAS_I2C
     if (i2cFd >= 0)
     {
         ::close (i2cFd);
         i2cFd = -1;
     }
    #endif
+#endif
 
     initialised = false;
 }
@@ -104,8 +254,8 @@ bool GpioBackend::pollInputsImpl (InputState& state)
         uint8_t configReg[3] =
         {
             0x01,
-            static_cast<uint8_t> (0xC3 | ((muxBits & 0x07) << 4)),
-            0x83
+            static_cast<uint8_t> (0xC5 | ((muxBits & 0x07) << 4)),
+            0xE3
         };
 
         if (::write (i2cFd, configReg, 3) != 3)
@@ -129,9 +279,9 @@ bool GpioBackend::pollInputsImpl (InputState& state)
     state.poti1 = readAdcChannel (0x04, state.poti1);
     state.poti2 = readAdcChannel (0x05, state.poti2);
 
-    state.footswitch1 = false;
-    state.footswitch2 = false;
-    state.footswitch3 = false;
+    state.footswitch1 = readGpioValue (config.gpioFootswitch1, false);
+    state.footswitch2 = readGpioValue (config.gpioFootswitch2, false);
+    state.footswitch3 = readGpioValue (config.gpioFootswitch3, false);
 
     return true;
    #else
@@ -146,7 +296,14 @@ bool GpioBackend::pollInputsImpl (InputState& state)
    #endif
 }
 
-bool GpioBackend::setLedStatesImpl (bool, bool, bool)
+bool GpioBackend::setLedStatesImpl (bool led1On, bool led2On, bool led3On)
 {
+#if JUCE_LINUX
+    const auto ok1 = writeGpioValue (config.gpioLed1, led1On);
+    const auto ok2 = writeGpioValue (config.gpioLed2, led2On);
+    const auto ok3 = writeGpioValue (config.gpioLed3, led3On);
+    return ok1 && ok2 && ok3;
+#else
     return true;
+#endif
 }
