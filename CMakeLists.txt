@@ -1,27 +1,61 @@
-cmake_minimum_required(VERSION 3.22)
+
+cmake_minimum_required(VERSION 3.16)
 
 project(AudioPluginHost VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find JUCE
-find_package(JUCE CONFIG REQUIRED)
+# Find JUCE installation - look for modules directory
+# Try JUCE_DIR environment variable first
+if(DEFINED ENV{JUCE_DIR})
+    set(JUCE_DIR "$ENV{JUCE_DIR}")
+else()
+    # Default to ~/JUCE
+    set(JUCE_DIR "$ENV{HOME}/JUCE")
+endif()
+
+# Construct the full path to modules
+set(JUCE_MODULES_PATH "${JUCE_DIR}/modules")
+
+# Check if JUCE modules exist
+if(NOT EXISTS "${JUCE_MODULES_PATH}/juce_core/juce_core.h")
+    message(FATAL_ERROR 
+        "JUCE modules not found at: ${JUCE_MODULES_PATH}\n"
+        "Please set JUCE_DIR environment variable:\n"
+        "  export JUCE_DIR=/path/to/JUCE\n"
+        "Or install JUCE to: $HOME/JUCE")
+endif()
+
+message(STATUS "Found JUCE at: ${JUCE_DIR}")
+message(STATUS "Using JUCE modules: ${JUCE_MODULES_PATH}")
 
 # Create the AudioPluginHost application
-juce_add_gui_app(AudioPluginHost
-    COMPANY_NAME                    "Raw Material Software Limited"
-    COMPANY_WEBSITE                 "https://juce.com"
-    COMPANY_EMAIL                   "info@juce.com"
-    BUNDLE_ID                       com.juce.pluginhost
-    MICROPHONE_PERMISSION_ENABLED   TRUE
-    PLUGINHOST_AU                   TRUE)
+add_executable(AudioPluginHost)
 
-juce_generate_juce_header(AudioPluginHost)
+# Set target properties
+set_target_properties(AudioPluginHost PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.0"
+    WIN32_EXECUTABLE TRUE)
 
-# Target sources - all source files
+# Include directories FIRST (before adding sources)
+target_include_directories(AudioPluginHost PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source/UI
+    ${CMAKE_CURRENT_SOURCE_DIR}/Assets
+    ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode
+    ${JUCE_MODULES_PATH})
+
+# Add source files
 target_sources(AudioPluginHost PRIVATE
+    # Main application
     Source/HostStartup.cpp
+    
+    # Plugin handling
     Source/Plugins/ARAPlugin.cpp
     Source/Plugins/ARAPlugin.h
     Source/Plugins/IOConfigurationWindow.cpp
@@ -30,47 +64,69 @@ target_sources(AudioPluginHost PRIVATE
     Source/Plugins/InternalPlugins.h
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/PluginGraph.h
+    
+    # UI components
     Source/UI/GraphEditorPanel.cpp
     Source/UI/GraphEditorPanel.h
     Source/UI/MainHostWindow.cpp
     Source/UI/MainHostWindow.h
-    Source/UI/PluginWindow.h)
+    Source/UI/PluginWindow.h
+    
+    # JUCE library code - MUST be compiled with proper headers
+    JuceLibraryCode/BinaryData.cpp
+    JuceLibraryCode/include_juce_core.cpp
+    JuceLibraryCode/include_juce_audio_basics.cpp
+    JuceLibraryCode/include_juce_audio_devices.cpp
+    JuceLibraryCode/include_juce_audio_formats.cpp
+    JuceLibraryCode/include_juce_audio_processors.cpp
+    JuceLibraryCode/include_juce_audio_utils.cpp
+    JuceLibraryCode/include_juce_cryptography.cpp
+    JuceLibraryCode/include_juce_data_structures.cpp
+    JuceLibraryCode/include_juce_dsp.cpp
+    JuceLibraryCode/include_juce_events.cpp
+    JuceLibraryCode/include_juce_graphics.cpp
+    JuceLibraryCode/include_juce_gui_basics.cpp
+    JuceLibraryCode/include_juce_gui_extra.cpp
+    JuceLibraryCode/include_juce_opengl.cpp)
 
-# Include directories
-target_include_directories(AudioPluginHost PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Source
-    ${CMAKE_CURRENT_SOURCE_DIR}/Source/Plugins
-    ${CMAKE_CURRENT_SOURCE_DIR}/Source/UI
-    ${CMAKE_CURRENT_SOURCE_DIR}/Assets)
+# Force include AppConfig.h for all files to provide JUCE macros
+target_compile_options(AudioPluginHost PRIVATE
+    -include ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode/AppConfig.h)
 
 # Compile definitions
 target_compile_definitions(AudioPluginHost PRIVATE
-    JUCE_ALSA=1
-    JUCE_CONTENT_SHARING=1
-    JUCE_DIRECTSOUND=1
-    JUCE_DISABLE_CAUTIOUS_PARAMETER_ID_CHECKING=1
-    JUCE_PLUGINHOST_LADSPA=1
-    JUCE_PLUGINHOST_LV2=1
-    JUCE_PLUGINHOST_VST3=1
-    JUCE_PLUGINHOST_VST=0
-    JUCE_PLUGINHOST_ARA=0
-    JUCE_USE_CAMERA=0
-    JUCE_USE_CDBURNER=0
-    JUCE_USE_CDREADER=0
-    JUCE_USE_CURL=0
-    JUCE_USE_FLAC=0
-    JUCE_USE_OGGVORBIS=1
-    JUCE_VST3_HOST_CROSS_PLATFORM_UID=1
-    JUCE_WASAPI=1
-    JUCE_WEB_BROWSER=0
     JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
 
+# Compiler-specific settings
+if(MSVC)
+    target_compile_options(AudioPluginHost PRIVATE /W4 /WX- /FI "${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode/AppConfig.h")
+    set_target_properties(AudioPluginHost PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+elseif(APPLE)
+    target_compile_options(AudioPluginHost PRIVATE -Wall -Wextra -fPIC)
+    set_target_properties(AudioPluginHost PROPERTIES 
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.juce.pluginhost")
+else()
+    target_compile_options(AudioPluginHost PRIVATE -Wall -Wextra -fPIC)
+endif()
+
 # Link libraries
-target_link_libraries(AudioPluginHost PRIVATE
-    juce::juce_audio_utils
-    juce::juce_cryptography
-    juce::juce_dsp
-    juce::juce_opengl
-    juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
-    juce::juce_recommended_warning_flags)
+if(WIN32)
+    target_link_libraries(AudioPluginHost PRIVATE
+        winmm
+        ws2_32
+        userenv)
+elseif(APPLE)
+    target_link_libraries(AudioPluginHost PRIVATE
+        "-framework CoreFoundation"
+        "-framework CoreAudio"
+        "-framework CoreMidi"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework AppKit")
+else()
+    target_link_libraries(AudioPluginHost PRIVATE
+        pthread
+        asound
+        dl
+        X11)
+endif()
