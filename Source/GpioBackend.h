@@ -20,13 +20,13 @@ public:
         juce::String i2cDevice = "/dev/i2c-1";
         int i2cAddress = 0x48;
 
-        int gpioLed1 = 4;
-        int gpioLed2 = 17;
-        int gpioLed3 = 22;
+        int gpioLed1 = 7;
+        int gpioLed2 = 11;
+        int gpioLed3 = 17;
 
-        int gpioFootswitch1 = 27;
-        int gpioFootswitch2 = 23;
-        int gpioFootswitch3 = 24;
+        int gpioFootswitch1 = 9;
+        int gpioFootswitch2 = 13;
+        int gpioFootswitch3 = 15;
     };
 
     struct InputState
