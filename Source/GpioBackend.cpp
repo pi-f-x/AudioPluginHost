@@ -16,6 +16,53 @@
 namespace
 {
    #if JUCE_LINUX
+    static int boardPinToBcm (int boardPin)
+    {
+        switch (boardPin)
+        {
+            case 3:  return 2;
+            case 5:  return 3;
+            case 7:  return 4;
+            case 8:  return 14;
+            case 10: return 15;
+            case 11: return 17;
+            case 12: return 18;
+            case 13: return 27;
+            case 15: return 22;
+            case 16: return 23;
+            case 18: return 24;
+            case 19: return 10;
+            case 21: return 9;
+            case 22: return 25;
+            case 23: return 11;
+            case 24: return 8;
+            case 26: return 7;
+            case 27: return 0;
+            case 28: return 1;
+            case 29: return 5;
+            case 31: return 6;
+            case 32: return 12;
+            case 33: return 13;
+            case 35: return 19;
+            case 36: return 16;
+            case 37: return 26;
+            case 38: return 20;
+            case 40: return 21;
+            default: return -1;
+        }
+    }
+
+    static int resolveGpioPin (int configuredPin, bool useBoardPinNumbers)
+    {
+        if (configuredPin < 0)
+            return -1;
+
+        if (! useBoardPinNumbers)
+            return configuredPin;
+
+        return boardPinToBcm (configuredPin);
+    }
+
     static bool writeTextFile (const juce::String& path, const juce::String& value)
     {
         std::ofstream stream (path.toRawUTF8());
@@ -41,6 +88,9 @@ namespace
 
     static bool ensureGpioExported (int pin)
     {
+        if (pin < 0)
+            return false;
+
         const auto gpioPath = juce::String ("/sys/class/gpio/gpio") + juce::String (pin);
 
         if (juce::File (gpioPath).exists())
@@ -135,18 +185,26 @@ bool GpioBackend::initialise()
         return true;
 
 #if JUCE_LINUX
-    const auto gpioReady = configureGpioDirection (config.gpioFootswitch1, "in")
-                        && configureGpioDirection (config.gpioFootswitch2, "in")
-                        && configureGpioDirection (config.gpioFootswitch3, "in")
-                        && configureGpioActiveLow (config.gpioFootswitch1, true)
-                        && configureGpioActiveLow (config.gpioFootswitch2, true)
-                        && configureGpioActiveLow (config.gpioFootswitch3, true)
-                        && configureGpioDirection (config.gpioLed1, "out")
-                        && configureGpioDirection (config.gpioLed2, "out")
-                        && configureGpioDirection (config.gpioLed3, "out")
-                        && writeGpioValue (config.gpioLed1, false)
-                        && writeGpioValue (config.gpioLed2, false)
-                        && writeGpioValue (config.gpioLed3, false);
+    gpioLed1Resolved = resolveGpioPin (config.gpioLed1, config.useBoardPinNumbers);
+    gpioLed2Resolved = resolveGpioPin (config.gpioLed2, config.useBoardPinNumbers);
+    gpioLed3Resolved = resolveGpioPin (config.gpioLed3, config.useBoardPinNumbers);
+
+    gpioFootswitch1Resolved = resolveGpioPin (config.gpioFootswitch1, config.useBoardPinNumbers);
+    gpioFootswitch2Resolved = resolveGpioPin (config.gpioFootswitch2, config.useBoardPinNumbers);
+    gpioFootswitch3Resolved = resolveGpioPin (config.gpioFootswitch3, config.useBoardPinNumbers);
+
+    const auto gpioReady = configureGpioDirection (gpioFootswitch1Resolved, "in")
+                        && configureGpioDirection (gpioFootswitch2Resolved, "in")
+                        && configureGpioDirection (gpioFootswitch3Resolved, "in")
+                        && configureGpioActiveLow (gpioFootswitch1Resolved, true)
+                        && configureGpioActiveLow (gpioFootswitch2Resolved, true)
+                        && configureGpioActiveLow (gpioFootswitch3Resolved, true)
+                        && configureGpioDirection (gpioLed1Resolved, "out")
+                        && configureGpioDirection (gpioLed2Resolved, "out")
+                        && configureGpioDirection (gpioLed3Resolved, "out")
+                        && writeGpioValue (gpioLed1Resolved, false)
+                        && writeGpioValue (gpioLed2Resolved, false)
+                        && writeGpioValue (gpioLed3Resolved, false);
 
    #if GPIO_BACKEND_HAS_I2C
     i2cFd = ::open (config.i2cDevice.toRawUTF8(), O_RDWR);
@@ -178,40 +236,40 @@ bool GpioBackend::initialise()
 void GpioBackend::shutdown()
 {
 #if JUCE_LINUX
-    if (config.gpioLed1 >= 0)
+    if (gpioLed1Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed1)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed1));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioLed1Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioLed1Resolved));
     }
 
-    if (config.gpioLed2 >= 0)
+    if (gpioLed2Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed2)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed2));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioLed2Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioLed2Resolved));
     }
 
-    if (config.gpioLed3 >= 0)
+    if (gpioLed3Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioLed3)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioLed3));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioLed3Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioLed3Resolved));
     }
 
-    if (config.gpioFootswitch1 >= 0)
+    if (gpioFootswitch1Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch1)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch1));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioFootswitch1Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioFootswitch1Resolved));
     }
 
-    if (config.gpioFootswitch2 >= 0)
+    if (gpioFootswitch2Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch2)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch2));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioFootswitch2Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioFootswitch2Resolved));
     }
 
-    if (config.gpioFootswitch3 >= 0)
+    if (gpioFootswitch3Resolved >= 0)
     {
-        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (config.gpioFootswitch3)).exists())
-            writeTextFile ("/sys/class/gpio/unexport", juce::String (config.gpioFootswitch3));
+        if (juce::File (juce::String ("/sys/class/gpio/gpio") + juce::String (gpioFootswitch3Resolved)).exists())
+            writeTextFile ("/sys/class/gpio/unexport", juce::String (gpioFootswitch3Resolved));
     }
 
    #if GPIO_BACKEND_HAS_I2C
@@ -284,9 +342,9 @@ bool GpioBackend::pollInputsImpl (InputState& state)
     state.poti1 = readAdcChannel (0x04, state.poti1);
     state.poti2 = readAdcChannel (0x05, state.poti2);
 
-    state.footswitch1 = readGpioValue (config.gpioFootswitch1, false);
-    state.footswitch2 = readGpioValue (config.gpioFootswitch2, false);
-    state.footswitch3 = readGpioValue (config.gpioFootswitch3, false);
+    state.footswitch1 = readGpioValue (gpioFootswitch1Resolved, false);
+    state.footswitch2 = readGpioValue (gpioFootswitch2Resolved, false);
+    state.footswitch3 = readGpioValue (gpioFootswitch3Resolved, false);
 
     return true;
    #else
@@ -304,9 +362,9 @@ bool GpioBackend::pollInputsImpl (InputState& state)
 bool GpioBackend::setLedStatesImpl (bool led1On, bool led2On, bool led3On)
 {
 #if JUCE_LINUX
-    const auto ok1 = writeGpioValue (config.gpioLed1, led1On);
-    const auto ok2 = writeGpioValue (config.gpioLed2, led2On);
-    const auto ok3 = writeGpioValue (config.gpioLed3, led3On);
+    const auto ok1 = writeGpioValue (gpioLed1Resolved, led1On);
+    const auto ok2 = writeGpioValue (gpioLed2Resolved, led2On);
+    const auto ok3 = writeGpioValue (gpioLed3Resolved, led3On);
     return ok1 && ok2 && ok3;
 #else
     return true;

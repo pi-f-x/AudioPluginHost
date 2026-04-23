@@ -53,10 +53,10 @@ public:
     {
         juce::ScopedNoDenormals noDenormals;
 
-        if (bypass != nullptr)
-            FxCommon::applyMappedBypassFromHardware(this, bypass);
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
+            return;
 
-        // IMPORTANT: bypass parameter does NOT bypass audio. Signal is ALWAYS wet as per Schaltplan.
         const int numChannels = jmin(2, buffer.getNumChannels());
         const int numSamples = buffer.getNumSamples();
 
@@ -217,14 +217,12 @@ public:
             speedLabel.setFont(juce::Font(14.0f, juce::Font::bold));
 
             // bypass footswitch - invisible button on top of painted footswitch
-            // Note: toggling only changes UI state (LED). Audio path remains wet.
             bypassButton.setClickingTogglesState(true);
             bypassButton.setToggleState(bypassParameter ? static_cast<bool>(*bypassParameter) : false, juce::dontSendNotification);
             bypassButton.onClick = [this]()
             {
                 if (!bypassParameter) return;
                 bool newVal = bypassButton.getToggleState();
-                // keep parameter for host automation/preset recall, but do NOT alter audio path
                 bypassParameter->setValueNotifyingHost(newVal ? 1.0f : 0.0f);
             };
             bypassButton.setColour(juce::ToggleButton::textColourId, juce::Colours::transparentBlack);

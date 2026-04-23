@@ -19,6 +19,7 @@ public:
     {
         juce::String i2cDevice = "/dev/i2c-1";
         int i2cAddress = 0x48;
+        bool useBoardPinNumbers = true;
 
         int gpioLed1 = 7;
         int gpioLed2 = 11;
@@ -56,6 +57,14 @@ private:
 
    #if JUCE_LINUX
     int i2cFd = -1;
+
+    int gpioLed1Resolved = -1;
+    int gpioLed2Resolved = -1;
+    int gpioLed3Resolved = -1;
+
+    int gpioFootswitch1Resolved = -1;
+    int gpioFootswitch2Resolved = -1;
+    int gpioFootswitch3Resolved = -1;
    #endif
 
     bool pollInputsImpl (InputState& state);
