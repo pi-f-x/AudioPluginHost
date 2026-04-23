@@ -33,15 +33,7 @@ message(STATUS "Using JUCE modules: ${JUCE_MODULES_PATH}")
 add_executable(AudioPluginHost)
 
 set(JUCE_USE_FREETYPE_VALUE 0)
-if(UNIX AND NOT APPLE)
-    find_package(Freetype QUIET)
-    if(FREETYPE_FOUND)
-        set(JUCE_USE_FREETYPE_VALUE 1)
-        message(STATUS "Found Freetype: ${FREETYPE_INCLUDE_DIRS}")
-    else()
-        message(WARNING "Freetype headers not found. Building with JUCE_USE_FREETYPE=0")
-    endif()
-endif()
+set(JUCE_USE_HARFBUZZ_VALUE 0)
 
 # Set target properties
 set_target_properties(AudioPluginHost PROPERTIES
@@ -60,15 +52,19 @@ target_include_directories(AudioPluginHost PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode
     ${JUCE_MODULES_PATH})
 
-if(FREETYPE_FOUND)
-    target_include_directories(AudioPluginHost PRIVATE ${FREETYPE_INCLUDE_DIRS})
-endif()
-
 # Add source files
 target_sources(AudioPluginHost PRIVATE
     # Main application
     Source/HostStartup.cpp
-    
+
+    # Hardware
+    Source/GpioBackend.cpp
+    Source/GpioBackend.h
+    Source/HardwareCalibration.cpp
+    Source/HardwareCalibration.h
+    Source/HardwareInputService.cpp
+    Source/HardwareInputService.h
+
     # Plugin handling
     Source/Plugins/ARAPlugin.cpp
     Source/Plugins/ARAPlugin.h
@@ -78,20 +74,22 @@ target_sources(AudioPluginHost PRIVATE
     Source/Plugins/InternalPlugins.h
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/PluginGraph.h
-    
+
     # UI components
     Source/UI/GraphEditorPanel.cpp
     Source/UI/GraphEditorPanel.h
     Source/UI/MainHostWindow.cpp
     Source/UI/MainHostWindow.h
     Source/UI/PluginWindow.h
-    
+
     # JUCE library code - MUST be compiled with proper headers
     JuceLibraryCode/BinaryData.cpp
     JuceLibraryCode/include_juce_core.cpp
+    JuceLibraryCode/include_juce_core_CompilationTime.cpp
     JuceLibraryCode/include_juce_audio_basics.cpp
     JuceLibraryCode/include_juce_audio_devices.cpp
     JuceLibraryCode/include_juce_audio_formats.cpp
+    JuceLibraryCode/include_juce_audio_processors_headless.cpp
     JuceLibraryCode/include_juce_audio_processors.cpp
     JuceLibraryCode/include_juce_audio_utils.cpp
     JuceLibraryCode/include_juce_cryptography.cpp
@@ -110,7 +108,8 @@ target_compile_options(AudioPluginHost PRIVATE
 # Compile definitions
 target_compile_definitions(AudioPluginHost PRIVATE
     JUCE_SILENCE_XCODE_15_LINKER_WARNING=1
-    JUCE_USE_FREETYPE=${JUCE_USE_FREETYPE_VALUE})
+    JUCE_USE_FREETYPE=${JUCE_USE_FREETYPE_VALUE}
+    JUCE_USE_HARFBUZZ=${JUCE_USE_HARFBUZZ_VALUE})
 
 # Compiler-specific settings
 if(MSVC)
@@ -143,9 +142,6 @@ else()
         pthread
         asound
         dl
-        X11)
-
-    if(FREETYPE_FOUND)
-        target_link_libraries(AudioPluginHost PRIVATE ${FREETYPE_LIBRARIES})
-    endif()
+        X11
+        GL)
 endif()
