@@ -33,7 +33,11 @@ message(STATUS "Using JUCE modules: ${JUCE_MODULES_PATH}")
 add_executable(AudioPluginHost)
 
 set(JUCE_USE_FREETYPE_VALUE 0)
-set(JUCE_USE_HARFBUZZ_VALUE 0)
+set(JUCE_USE_HARFBUZZ_VALUE 1)
+
+if(UNIX AND NOT APPLE)
+    find_package(Freetype REQUIRED)
+endif()
 
 # Set target properties
 set_target_properties(AudioPluginHost PROPERTIES
@@ -51,6 +55,11 @@ target_include_directories(AudioPluginHost PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Assets
     ${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode
     ${JUCE_MODULES_PATH})
+
+if(UNIX AND NOT APPLE)
+    target_include_directories(AudioPluginHost PRIVATE ${FREETYPE_INCLUDE_DIRS})
+    set(JUCE_USE_FREETYPE_VALUE 1)
+endif()
 
 # Add source files
 target_sources(AudioPluginHost PRIVATE
@@ -96,6 +105,8 @@ target_sources(AudioPluginHost PRIVATE
     JuceLibraryCode/include_juce_data_structures.cpp
     JuceLibraryCode/include_juce_dsp.cpp
     JuceLibraryCode/include_juce_events.cpp
+    JuceLibraryCode/include_juce_graphics_Harfbuzz.cpp
+    JuceLibraryCode/include_juce_graphics_Sheenbidi.c
     JuceLibraryCode/include_juce_graphics.cpp
     JuceLibraryCode/include_juce_gui_basics.cpp
     JuceLibraryCode/include_juce_gui_extra.cpp
@@ -143,5 +154,7 @@ else()
         asound
         dl
         X11
-        GL)
+        GL
+        fontconfig
+        ${FREETYPE_LIBRARIES})
 endif()
