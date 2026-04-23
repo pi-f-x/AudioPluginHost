@@ -132,7 +132,8 @@ public:
 
     void processBlock(AudioBuffer<float>& bufferIn, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numSamples = bufferIn.getNumSamples();
@@ -144,7 +145,8 @@ public:
 
     void processBlock(AudioBuffer<double>& bufferIn, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numSamples = bufferIn.getNumSamples();
@@ -398,8 +400,13 @@ public:
             if (down2Parameter && down2Button.getToggleState() != static_cast<bool>(*down2Parameter))
                 down2Button.setToggleState(static_cast<bool>(*down2Parameter), dontSendNotification);
 
-            if (bypassParameter && bypassToggle.getToggleState() != static_cast<bool>(*bypassParameter))
-                bypassToggle.setToggleState(static_cast<bool>(*bypassParameter), dontSendNotification);
+            if (bypassParameter)
+            {
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
+                bypassToggle.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
+                if (bypassToggle.getToggleState() != pBypass)
+                    bypassToggle.setToggleState(pBypass, dontSendNotification);
+            }
 
             // update small LED components
             ledUp2.setColour(Label::backgroundColourId, up2Button.getToggleState() ? Colours::red : Colours::darkred);

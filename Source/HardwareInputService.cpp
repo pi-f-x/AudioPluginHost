@@ -98,7 +98,11 @@ void HardwareInputService::timerCallback()
     fs2.store (raw.footswitch2);
     fs3.store (raw.footswitch3);
 
-    backend.setLedStates (raw.footswitch1, raw.footswitch2, raw.footswitch3);
+    bool led1 = false;
+    bool led2 = false;
+    bool led3 = false;
+    FxCommon::getRequestedHardwareLedStates(led1, led2, led3);
+    backend.setLedStates (led1, led2, led3);
 
     FxCommon::setHardwareInputSnapshot (p1, p2,
                                         raw.footswitch1,

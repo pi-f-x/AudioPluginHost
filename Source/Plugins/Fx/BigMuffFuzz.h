@@ -133,7 +133,8 @@ public:
 
     void processBlock(AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -151,7 +152,8 @@ public:
 
     void processBlock(AudioBuffer<double>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -396,11 +398,12 @@ public:
                 const float pSustain = FxCommon::getDisplayValueForParameter(&processor, sustainParameter);
                 const float pTone = FxCommon::getDisplayValueForParameter(&processor, toneParameter);
                 const float pVolume = FxCommon::getDisplayValueForParameter(&processor, volumeParameter);
-                const bool pBypass = static_cast<bool>(*bypassParameter);
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
 
                 sustainSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, sustainParameter));
                 toneSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, toneParameter));
                 volumeSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, volumeParameter));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
 
                 const float displaySustain = invertSustain ? (1.0f - pSustain) : pSustain;
                 const float displayTone = invertTone ? (1.0f - pTone) : pTone;

@@ -120,7 +120,8 @@ public:
 
     void processBlock(AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -142,7 +143,8 @@ public:
 
     void processBlock(AudioBuffer<double>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -406,11 +408,12 @@ public:
                 const float pDelay = FxCommon::getDisplayValueForParameter(&processor, delayParameter);
                 const float pMix = FxCommon::getDisplayValueForParameter(&processor, mixParameter);
                 const float pRegen = FxCommon::getDisplayValueForParameter(&processor, regenParameter);
-                const bool pBypass = static_cast<bool>(*bypassParameter);
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
 
                 delaySlider.setEnabled(FxCommon::isManualControlAllowed(&processor, delayParameter));
                 mixSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, mixParameter));
                 regenSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, regenParameter));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
 
                 if (std::abs((float)delaySlider.getValue() - pDelay) > 0.001f)
                     delaySlider.setValue(pDelay, dontSendNotification);

@@ -105,8 +105,8 @@ public:
 
     void processBlock(AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        // If bypass is enabled, pass through without processing
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -124,8 +124,8 @@ public:
 
     void processBlock(AudioBuffer<double>& buffer, MidiBuffer&) override
     {
-        // If bypass is enabled, pass through without processing
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -404,11 +404,12 @@ public:
                 const float pDrive = FxCommon::getDisplayValueForParameter(&processor, driveParameter);
                 const float pFilter = FxCommon::getDisplayValueForParameter(&processor, filterParameter);
                 const float pVolume = FxCommon::getDisplayValueForParameter(&processor, volumeParameter);
-                const bool pBypass = static_cast<bool>(*bypassParameter);
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
 
                 distortionSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, driveParameter));
                 filterSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, filterParameter));
                 volumeSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, volumeParameter));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
 
                 const float displayDrive = invertDistortion ? (1.0f - pDrive) : pDrive;
                 const float displayFilter = pFilter;

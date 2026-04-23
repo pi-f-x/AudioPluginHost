@@ -1217,6 +1217,24 @@ namespace FxCommon
         return v;
     }
 
+    inline std::atomic<bool>& hardwareLed1Requested()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
+    inline std::atomic<bool>& hardwareLed2Requested()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
+    inline std::atomic<bool>& hardwareLed3Requested()
+    {
+        static std::atomic<bool> v { false };
+        return v;
+    }
+
     inline void setHardwareInputSnapshot(float poti1, float poti2,
                                      bool footswitch1, bool footswitch2, bool footswitch3)
     {
@@ -1238,6 +1256,134 @@ namespace FxCommon
             case ModulationSource::footswitch3: return hardwareFootswitch3Value().load() ? 1.0f : 0.0f;
             default: return 0.0f;
         }
+    }
+
+    struct BypassRuntimeState
+    {
+        bool initialised = false;
+        bool previousSwitchState = false;
+        bool latchedBypassState = false;
+    };
+
+    struct BypassLedClaim
+    {
+        ModulationSource source = ModulationSource::none;
+        bool ledOn = false;
+    };
+
+    inline std::mutex& bypassRuntimeMutex()
+    {
+        static std::mutex m;
+        return m;
+    }
+
+    inline std::unordered_map<juce::String, BypassRuntimeState>& bypassRuntimeStates()
+    {
+        static std::unordered_map<juce::String, BypassRuntimeState> states;
+        return states;
+    }
+
+    inline std::unordered_map<juce::String, BypassLedClaim>& bypassLedClaims()
+    {
+        static std::unordered_map<juce::String, BypassLedClaim> claims;
+        return claims;
+    }
+
+    inline bool isFootswitchSource(ModulationSource source)
+    {
+        return source == ModulationSource::footswitch1
+            || source == ModulationSource::footswitch2
+            || source == ModulationSource::footswitch3;
+    }
+
+    inline void rebuildHardwareLedRequestFromClaimsLocked()
+    {
+        bool led1 = false;
+        bool led2 = false;
+        bool led3 = false;
+
+        for (const auto& [key, claim] : bypassLedClaims())
+        {
+            juce::ignoreUnused(key);
+            if (! claim.ledOn)
+                continue;
+
+            if (claim.source == ModulationSource::footswitch1) led1 = true;
+            else if (claim.source == ModulationSource::footswitch2) led2 = true;
+            else if (claim.source == ModulationSource::footswitch3) led3 = true;
+        }
+
+        hardwareLed1Requested().store(led1);
+        hardwareLed2Requested().store(led2);
+        hardwareLed3Requested().store(led3);
+    }
+
+    inline bool applyMappedBypassFromHardware(const juce::AudioProcessor* processor,
+                                              juce::AudioParameterBool* bypassParameter)
+    {
+        if (bypassParameter == nullptr)
+            return false;
+
+        bool bypassState = static_cast<bool>(*bypassParameter);
+
+        if (processor == nullptr)
+            return bypassState;
+
+        const auto parameterId = parameterIdFromParameter(bypassParameter);
+        const auto key = makeParameterKey(makeRuntimeNodeId(processor), parameterId);
+        const auto assignment = getAssignmentForParameter(processor, bypassParameter);
+
+        std::lock_guard<std::mutex> lock(bypassRuntimeMutex());
+
+        if (!isFootswitchSource(assignment.source))
+        {
+            bypassRuntimeStates().erase(key);
+            bypassLedClaims().erase(key);
+            rebuildHardwareLedRequestFromClaimsLocked();
+            return bypassState;
+        }
+
+        auto& state = bypassRuntimeStates()[key];
+        const bool switchPressed = getHardwareSourceNormalised(assignment.source) >= 0.5f;
+
+        if (!state.initialised)
+        {
+            state.initialised = true;
+            state.previousSwitchState = switchPressed;
+            state.latchedBypassState = bypassState;
+        }
+        else
+        {
+            if (switchPressed && !state.previousSwitchState)
+                state.latchedBypassState = !state.latchedBypassState;
+
+            state.previousSwitchState = switchPressed;
+        }
+
+        bypassState = state.latchedBypassState;
+        const bool parameterState = static_cast<bool>(*bypassParameter);
+        if (parameterState != bypassState)
+            bypassParameter->setValueNotifyingHost(bypassState ? 1.0f : 0.0f);
+
+        bypassLedClaims()[key] = { assignment.source, !bypassState };
+        rebuildHardwareLedRequestFromClaimsLocked();
+        return bypassState;
+    }
+
+    inline bool getDisplayBypassStateForParameter(const juce::AudioProcessor* processor,
+                                                  juce::AudioParameterBool* parameter)
+    {
+        if (parameter == nullptr)
+            return false;
+
+        return applyMappedBypassFromHardware(processor, parameter);
+    }
+
+    inline void getRequestedHardwareLedStates(bool& led1, bool& led2, bool& led3)
+    {
+        led1 = hardwareLed1Requested().load();
+        led2 = hardwareLed2Requested().load();
+        led3 = hardwareLed3Requested().load();
     }
 
     inline float getDisplayValueForParameter(const juce::AudioProcessor* processor,

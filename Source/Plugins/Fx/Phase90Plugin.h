@@ -53,6 +53,9 @@ public:
     {
         juce::ScopedNoDenormals noDenormals;
 
+        if (bypass != nullptr)
+            FxCommon::applyMappedBypassFromHardware(this, bypass);
+
         // IMPORTANT: bypass parameter does NOT bypass audio. Signal is ALWAYS wet as per Schaltplan.
         const int numChannels = jmin(2, buffer.getNumChannels());
         const int numSamples = buffer.getNumSamples();
@@ -311,9 +314,10 @@ public:
             if (rateParameter && bypassParameter)
             {
                 const float pRate = FxCommon::getDisplayValueForParameter(&processor, rateParameter);
-                const bool pBy = static_cast<bool>(*bypassParameter);
+                const bool pBy = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
 
                 rateSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, rateParameter));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
 
                 if (std::abs((float)rateSlider.getValue() - pRate) > 0.001f)
                     rateSlider.setValue(pRate, juce::dontSendNotification);

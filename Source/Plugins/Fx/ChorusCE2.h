@@ -119,7 +119,8 @@ public:
 
     void processBlock(AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -138,7 +139,8 @@ public:
 
     void processBlock(AudioBuffer<double>& buffer, MidiBuffer&) override
     {
-        if (bypass && static_cast<bool>(*bypass))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypass);
+        if (isBypassed)
             return;
 
         const int numCh = buffer.getNumChannels();
@@ -400,10 +402,11 @@ public:
             {
                 const float pRate = FxCommon::getDisplayValueForParameter(&processor, rateParameter);
                 const float pDepth = FxCommon::getDisplayValueForParameter(&processor, depthParameter);
-                const bool pBypass = static_cast<bool>(*bypassParameter);
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParameter);
 
                 rateSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, rateParameter));
                 depthSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, depthParameter));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParameter));
 
                 if (std::abs((float)rateSlider.getValue() - normalizedFromRate(pRate)) > 0.001f)
                     rateSlider.setValue(normalizedFromRate(pRate), dontSendNotification);

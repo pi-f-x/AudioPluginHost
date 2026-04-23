@@ -66,7 +66,8 @@ public:
 
     void processBlock (AudioBuffer<float>& buffer, MidiBuffer&) override
     {
-        if (bypassParam && static_cast<bool>(*bypassParam))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypassParam);
+        if (isBypassed)
             return;
             
         auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -91,7 +92,8 @@ public:
 
     void processBlock (AudioBuffer<double>& buffer, MidiBuffer&) override
     {
-        if (bypassParam && static_cast<bool>(*bypassParam))
+        const bool isBypassed = FxCommon::applyMappedBypassFromHardware(this, bypassParam);
+        if (isBypassed)
             return;
             
         AudioBuffer<float> floatBuffer (buffer.getNumChannels(), buffer.getNumSamples());
@@ -291,9 +293,10 @@ public:
             if (gainParam && bypassParam)
             {
                 const float pGain = FxCommon::getDisplayValueForParameter(&processor, gainParam);
-                const bool pBypass = static_cast<bool>(*bypassParam);
+                const bool pBypass = FxCommon::getDisplayBypassStateForParameter(&processor, bypassParam);
 
                 gainSlider.setEnabled(FxCommon::isManualControlAllowed(&processor, gainParam));
+                bypassButton.setEnabled(FxCommon::isManualControlAllowed(&processor, bypassParam));
 
                 if (std::abs ((float)gainSlider.getValue() - pGain) > 0.0005f)
                     gainSlider.setValue (pGain, dontSendNotification);
