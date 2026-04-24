@@ -37,6 +37,11 @@
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
 
+namespace
+{
+    constexpr int touchPinSize = 56;
+}
+
 //==============================================================================
 // NEW: Floating Plugin Menu Component
 struct GraphEditorPanel::FloatingPluginMenu final : public Component
@@ -185,7 +190,7 @@ struct GraphEditorPanel::PinComponent final : public Component,
             }
 
             // Fixed size for 800x480 touchscreen - larger pins
-            setSize (28, 28);
+            setSize (touchPinSize, touchPinSize);
         }
 
         void paint (Graphics& g) override
@@ -253,7 +258,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
             // Fixed for 800x480 touchscreen - larger font and component
             font = FontOptions { 18.0f, Font::bold };
-            setSize (220, 100);
+            setSize (220, 150);
         }
 
         PluginComponent (const PluginComponent&) = delete;
@@ -276,23 +281,15 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             originalPos = localPointToGlobal (Point<int>());
 
             toFront (true);
+
+            if (isEssentialNode())
+                return;
             
             // Check if in delete mode
             if (panel.isDeleteMode())
             {
-                // Check if this is Audio Input or Audio Output - these cannot be deleted
-                bool isEssentialNode = false;
-                if (auto* processor = getProcessor())
-                {
-                    String name = processor->getName();
-                    isEssentialNode = (name == "Audio Input" || name == "Audio Output");
-                }
-                
-                if (!isEssentialNode)
-                {
-                    // Delete this plugin immediately
-                    graph.graph.removeNode (pluginID);
-                }
+                // Delete this plugin immediately
+                graph.graph.removeNode (pluginID);
                 return; // Don't proceed with normal drag behavior
             }
 
@@ -304,6 +301,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         void mouseDrag (const MouseEvent& e) override
         {
+            if (isEssentialNode())
+                return;
+
             // Don't drag in delete mode
             if (panel.isDeleteMode())
                 return;
@@ -330,6 +330,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         void mouseUp (const MouseEvent& e) override
         {
+            if (isEssentialNode())
+                return;
+
             // Don't do anything in delete mode (deletion happens in mouseDown)
             if (panel.isDeleteMode())
                 return;
@@ -358,6 +361,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             for (auto* child : getChildren())
                 if (child->getBounds().contains (x, y))
                     return true;
+
+            if (isEssentialNode())
+                return false;
 
             return x >= 3 && x < getWidth() - 6 && y >= pinSize && y < getHeight() - pinSize;
         }
@@ -440,12 +446,13 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             int w = 150;
             int h = 90;
 
-            w = jmax (w, (jmax (numIns, numOuts) + 1) * 32);
+            h = jmax (h, pinSize * 2 + 34);
+            w = jmax (w, (jmax (numIns, numOuts) + 1) * 64);
 
             const auto textWidth = GlyphArrangement::getStringWidthInt (font, processor.getName());
             w = jmax (w, 24 + jmin (textWidth, 400));
             if (textWidth > 400)
-                h = 120;
+                h = jmax (h, pinSize * 2 + 64);
 
             setSize (w, h);
             setName (processor.getName() + formatSuffix);
@@ -486,10 +493,13 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             return {};
         }
 
-        bool isNodeUsingARA() const
+        bool isEssentialNode() const
         {
-            if (auto node = graph.graph.getNodeForId (pluginID))
-                return node->properties["useARA"];
+            if (auto* processor = getProcessor())
+            {
+                const auto name = processor->getName();
+                return name == "Audio Input" || name == "Audio Output";
+            }
 
             return false;
         }
@@ -498,16 +508,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         {
             menu.reset (new PopupMenu);
             
-            // Check if this is Audio Input or Audio Output - these cannot be deleted
-            bool isEssentialNode = false;
-            if (auto* processor = getProcessor())
-            {
-                String name = processor->getName();
-                isEssentialNode = (name == "Audio Input" || name == "Audio Output");
-            }
-            
             // Only add delete option if not an essential node
-            if (!isEssentialNode)
+            if (! isEssentialNode())
             {
                 menu->addItem ("Delete this filter", [this] { graph.graph.removeNode (pluginID); });
             }
@@ -642,7 +644,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         OwnedArray<PinComponent> pins;
         int numInputs = 0, numOutputs = 0;
         // Fixed larger pin size for 800x480 touchscreen
-        int pinSize = 28;
+        int pinSize = touchPinSize;
         Point<int> originalPos;
         Font font;
         int numIns = 0, numOuts = 0;
@@ -836,6 +838,17 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         }
     }
 
+    bool hitTest (int x, int y) override
+    {
+        return hitPath.contains ((float) x, (float) y);
+    }
+
+    void mouseDown (const MouseEvent&) override
+    {
+        if (panel.isDeleteMode() && ! dragging)
+            graph.graph.removeConnection (connection);
+    }
+
     GraphEditorPanel& panel;
     PluginGraph& graph;
     AudioProcessorGraph::Connection connection { { {}, 0 }, { {}, 0 } };
@@ -986,8 +999,8 @@ void GraphEditorPanel::paint (Graphics& g)
         
         // Draw warning text
         g.setFont (Font (20.0f, Font::bold));
-        g.drawText ("DELETE MODE - Click effects to delete", 
-                   getLocalBounds().removeFromTop (40), 
+        g.drawText ("DELETE MODE - Click connections or effects to delete", 
+                   getLocalBounds().removeFromTop (20), 
                    Justification::centred);
     }
 }

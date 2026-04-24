@@ -334,7 +334,7 @@ MainHostWindow::MainHostWindow()
                                      safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), true);
                                  });
 
-   #if JUCE_IOS || JUCE_ANDROID
+   #if JUCE_IOS || JUCE_ANDROID || JUCE_LINUX
     setFullScreen (true);
    #else
     // Fixed 800x480 for touchscreen - NOT resizable
